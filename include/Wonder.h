@@ -5,10 +5,11 @@
 #include <string>
 #include <vector>
 
-
 class Wonder {
 public:
-  Wonder(std::string name, Cost cost, Effect effect);
+  // 工厂将调用此构造函数
+  Wonder(std::string name, Cost cost, Effect effect)
+      : name(name), cost(cost), effect(effect), built(false) {}
 
   std::string getName() const;
   const Cost &getCost() const;

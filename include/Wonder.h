@@ -5,6 +5,10 @@
 #include <string>
 #include <vector>
 
+// 前向声明
+class Game;
+class Player;
+
 class Wonder {
 public:
   // 工厂将调用此构造函数
@@ -16,6 +20,8 @@ public:
   const Effect &getEffect() const;
   bool isBuilt() const;
   void build();
+  // 新增：执行奇迹效果
+  void activateEffect(Game& game, Player& owner, Player& opponent);
 
 private:
   std::string name;

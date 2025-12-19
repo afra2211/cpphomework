@@ -1,7 +1,8 @@
 #include "Wonder.h"
-
-Wonder::Wonder(std::string name, Cost cost, Effect effect)
-    : name(name), cost(cost), effect(effect), built(false) {}
+#include "Game.h"
+#include "Player.h"
+#include "Card.h"
+#include <stdexcept>
 
 std::string Wonder::getName() const {
     return name;
@@ -21,4 +22,32 @@ bool Wonder::isBuilt() const {
 
 void Wonder::build() {
     built = true;
+}
+
+// 新增：实现奇迹效果激活
+void Wonder::activateEffect(Game& game, Player& owner, Player& opponent) {
+    const Effect& e = getEffect();
+    
+    // 处理基本资源和分数
+    owner.addVictoryPoints(e.victoryPoints);
+    owner.addMilitaryPower(e.militaryShields);
+    owner.addCoins(e.coins);
+    
+    for (const auto& [type, amount] : e.resourcesProduced) {
+        owner.addResource(type, amount);
+    }
+    
+    for (const auto& symbol : e.scienceSymbols) {
+        owner.addScienceSymbol(symbol);
+    }
+    
+    // 处理特殊效果：再玩一回合
+    if (e.playAgain) {
+        game.setCurrentPlayer(owner);
+    }
+    
+    // 处理特殊效果：销毁对手一张卡
+    if (e.destroyOpponentCard && !opponent.getBuiltCards().empty()) {
+        opponent.removeLastBuiltCard();
+    }
 }

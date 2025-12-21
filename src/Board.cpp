@@ -1,4 +1,5 @@
 #include "Board.h"
+#include "Player.h"
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
@@ -7,7 +8,12 @@
  * @brief Board类构造函数
  * @note 初始化军事位置为0（中央），并初始化所有进步标记
  */
-Board::Board() : militaryPosition(0) {
+Board::Board() : militaryPosition(MILITARY_START_POSITION) {
+  // 初始化军事区段 token 配置（两侧对称），默认未触发
+  militaryTokens = {
+      {3, 2, 0, 0, false},  {6, 5, 0, 0, false},  {9, 10, 0, 0, false},
+      {-3, 2, 0, 0, false}, {-6, 5, 0, 0, false}, {-9, 10, 0, 0, false}};
+
   // === 新增：初始化进步标记系统 ===
   initializeAllProgressTokens();
 }
@@ -18,8 +24,12 @@ Board::Board() : militaryPosition(0) {
  * @param deck 该时代的卡牌堆（应包含20张卡牌）
  * @note 根据时代不同采用不同的金字塔布局结构
  */
-void Board::setupAge(int age, std::vector<Card> deck) {
+void Board::setupAge(int age, std::vector<Card> deck,
+                     const std::vector<Card> &removed) {
   pyramid.clear(); // 清空现有金字塔布局
+
+  // 预留处理：如果需要展示/记录被移除的卡牌，可在此使用 removed
+  (void)removed;
 
   // 根据时代选择对应的布局设置函数
   if (age == 1)
@@ -113,9 +123,51 @@ int Board::getMilitaryPosition() const { return militaryPosition; }
  * @param amount 移动距离（正数向玩家2移动，负数向玩家1移动）
  * @note 军事移动由红色卡牌和奇迹的盾牌数量决定，边界检查和胜利判定由Game类处理
  */
-void Board::moveMilitary(int amount) {
-  militaryPosition += amount;
-  // 注意：边界限制（-9到9）和军事胜利判定应由Game类处理
+void Board::moveMilitary(int amount, Player *mover, Player *opponent) {
+  if (amount == 0) {
+    return;
+  }
+
+  int original = militaryPosition;
+  int target = std::clamp(militaryPosition + amount, -9, 9);
+  int direction = (target > original) ? 1 : -1;
+  int extraMovement = 0;
+
+  for (auto &token : militaryTokens) {
+    if (token.removed) {
+      continue;
+    }
+
+    bool crossed = false;
+    if (direction > 0) {
+      crossed = token.threshold > original && token.threshold <= target;
+    } else {
+      crossed = token.threshold < original && token.threshold >= target;
+    }
+
+    if (crossed) {
+      if (opponent && token.coinPenalty > 0) {
+        opponent->removeCoins(token.coinPenalty);
+      }
+      if (mover && token.victoryPoints > 0) {
+        mover->addVictoryPoints(token.victoryPoints);
+      }
+      if (token.extraShields != 0) {
+        extraMovement += token.extraShields * direction;
+      }
+      token.removed = true;
+    }
+  }
+
+  militaryPosition = target;
+
+  if (extraMovement != 0) {
+    moveMilitary(extraMovement, mover, opponent);
+  }
+}
+
+const std::vector<MilitaryToken> &Board::getMilitaryTokens() const {
+  return militaryTokens;
 }
 
 /**
@@ -148,6 +200,15 @@ Wonder *Board::takeWonder(int index) {
   Wonder *w = availableWonders[index];
   availableWonders.erase(availableWonders.begin() + index);
   return w;
+}
+
+void Board::removeFirstUnbuiltWonder() {
+  for (auto it = availableWonders.begin(); it != availableWonders.end(); ++it) {
+    if (*it != nullptr && !(*it)->isBuilt()) {
+      availableWonders.erase(it);
+      break;
+    }
+  }
 }
 
 // === 新增：进步标记系统实现 ===
@@ -235,36 +296,30 @@ bool Board::canTakeProgressToken(ScienceSymbol symbol) const {
  * @note
  * 当玩家建造绿色科学建筑获得科学符号时调用，检查进步标记获取和科技胜利条件
  */
-void Board::onSciencePair(ScienceSymbol symbol) {
-  /**
-   * 科学符号配对事件处理：
-   * 1. 增加对应符号计数
-   * 2. 检查是否满足进步标记获取条件（2个相同符号）
-   * 3. 检查是否达成科技胜利（6种不同符号）
-   */
+bool Board::onSciencePair(Player &player) {
+  // 使用玩家自身的符号计数检查配对情况
+  const auto counts = player.getScienceSymbolCounts();
 
-  // 增加对应科学符号的计数
-  scienceSymbolCounts[symbol]++;
-
-  // 检查进步标记获取条件：达到2个相同符号且游戏板上有可用标记
-  if (scienceSymbolCounts[symbol] >= 2 && !availableProgressTokens.empty()) {
-    // 触发进步标记获取事件（可由Game类处理玩家选择）
-    // 例如：game->onProgressTokenAvailable(currentPlayer);
-  }
-
-  // 检查科技胜利条件：集齐6种不同的科学符号
-  int uniqueSymbols = 0;
-  for (const auto &pair : scienceSymbolCounts) {
-    if (pair.second > 0) {
-      uniqueSymbols++; // 统计不同符号的数量
+  for (const auto &[symbol, count] : counts) {
+    if (symbol == ScienceSymbol::NONE) {
+      continue;
+    }
+    if (count >= 2 && !player.hasClaimedSciencePair(symbol) &&
+        !availableProgressTokens.empty()) {
+      ProgressToken token = takeProgressToken(0);
+      player.addProgressToken(token);
+      player.markSciencePairClaimed(symbol);
     }
   }
 
-  // 如果收集到6种不同的科学符号，触发科技胜利
-  if (uniqueSymbols >= 6) {
-    // 触发科技胜利（可由Game类处理）
-    // 例如：game->triggerScientificVictory(currentPlayer);
+  int uniqueSymbols = 0;
+  for (const auto &[symbol, count] : counts) {
+    if (count > 0) {
+      uniqueSymbols++;
+    }
   }
+
+  return uniqueSymbols >= 6;
 }
 
 /**

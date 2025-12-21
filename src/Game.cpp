@@ -1,5 +1,4 @@
 #include "Game.h"
-#include "AI.h"
 #include <algorithm>
 #include <chrono>
 #include <iomanip>
@@ -8,7 +7,9 @@
 #include <random>
 
 Game::Game()
-    : p1(nullptr), p2(nullptr), currentPlayerIndex(0), currentAge(1),
+    : p1(nullptr), p2(nullptr), bankCoins(0), builtWonderCount(0),
+      eighthWonderRemoved(false), extraTurnPending(false),
+      currentPlayerIndex(0), lastActionPlayerIndex(0), currentAge(1),
       gameOver(false) {}
 
 void Game::init(std::string p1Name, bool p1IsAI, std::string p2Name,
@@ -16,9 +17,25 @@ void Game::init(std::string p1Name, bool p1IsAI, std::string p2Name,
   p1 = new Player(p1Name, p1IsAI);
   p2 = new Player(p2Name, p2IsAI);
   board = Board();
+  discardPile.clear();
+  bankCoins = 0; // 抽象银行：默认不封顶
+  removedProgressTokens.clear();
+  claimedProgressTokens.clear();
+  builtWonderCount = 0;
+  eighthWonderRemoved = false;
+  extraTurnPending = false;
   currentPlayerIndex = 0;
+  lastActionPlayerIndex = 0;
   currentAge = 1;
   gameOver = false;
+
+  board.setupProgressTokens();
+  // 冲突棋子重置到起始位置
+  board.moveMilitary(Board::MILITARY_START_POSITION - board.getMilitaryPosition());
+
+  // 按规则确保双方起始 7 金币
+  p1->addCoins(7 - p1->getCoins());
+  p2->addCoins(7 - p2->getCoins());
 
   setupWonders();
 }
@@ -453,9 +470,11 @@ int Game::getPlayerWonderChoice(int min, int max, const std::string &prompt,
 
 void Game::start() {
   // Main game loop
-  for (int age = 1; age <= 3 && !gameOver; ++age) {
+  int age = 1;
+  while (age <= 3 && !gameOver) {
     playAge(age);
 
+    bool ageComplete = false;
     while (!gameOver) {
       // Display board
       printBoard();
@@ -469,12 +488,42 @@ void Game::start() {
         }
       }
 
-      if (empty)
+      if (empty) {
+        ageComplete = true;
         break; // Age complete
+      }
 
       // Play turn
       playTurn();
     }
+
+    if (gameOver) {
+      break;
+    }
+
+    if (!ageComplete) {
+      // 游戏提前结束或异常直接退出循环
+      break;
+    }
+
+    if (age == 3) {
+      break; // 所有时代结束
+    }
+
+    // 决定下一时代先手
+    int militaryPos = board.getMilitaryPosition();
+    if (militaryPos > 0) {
+      // 冲突棋子靠近玩家2一侧 -> 玩家2决定先手，这里直接让玩家2先手
+      currentPlayerIndex = 1;
+    } else if (militaryPos < 0) {
+      // 冲突棋子靠近玩家1一侧 -> 玩家1决定先手
+      currentPlayerIndex = 0;
+    } else {
+      // 冲突棋子在中立格，上一回合行动玩家决定
+      currentPlayerIndex = lastActionPlayerIndex;
+    }
+
+    age += 1;
   }
 
   // Final scoring
@@ -490,45 +539,40 @@ void Game::playAge(int age) {
   std::cout << "========================================\n" << std::endl;
 
   std::vector<Card> deck;
+  std::vector<Card> removed;
   if (age == 1)
-    deck = Deck::getAge1Deck();
+    deck = Deck::getAge1Deck(false, &removed);
   else if (age == 2)
-    deck = Deck::getAge2Deck();
+    deck = Deck::getAge2Deck(false, &removed);
   else
-    deck = Deck::getAge3Deck();
+    deck = Deck::getAge3Deck(false, &removed);
 
-  board.setupAge(age, deck);
+  board.setupAge(age, deck, removed);
 }
 
 void Game::playTurn() {
   Player *currentPlayer = (currentPlayerIndex == 0) ? p1 : p2;
   Player *otherPlayer = (currentPlayerIndex == 0) ? p2 : p1;
+  bool grantExtraTurn = false;
+  int actingPlayerIndex = currentPlayerIndex;
 
   printPlayerStatePanel(currentPlayer, otherPlayer);
 
   std::cout << "\n--- " << currentPlayer->getName() << "'s Turn ---"
             << std::endl;
 
-  int cardIndex = -1;
+  Decision decision;
+
+  std::vector<int> accessibleIndices;
+  const auto &pyramid = board.getPyramid();
+  for (size_t i = 0; i < pyramid.size(); ++i) {
+    if (board.isCardAccessible(i) && !pyramid[i].isTaken) {
+      accessibleIndices.push_back(static_cast<int>(i));
+    }
+  }
 
   if (currentPlayer->isAIPlayer()) {
-    // AI move - simplified for now, just builds the card
-    cardIndex = AI::getBestMove(*this, *currentPlayer);
-    std::cout << "AI chooses card " << cardIndex << std::endl;
-    Card card = board.takeCard(cardIndex);
-    std::cout << "AI took card: " << card.getName() << std::endl;
-    currentPlayer->buildCard(card);
-
-    // Apply military effect
-    const Effect &e = card.getEffect();
-    if (e.militaryShields > 0) {
-      if (currentPlayer == p1) {
-        board.moveMilitary(e.militaryShields);
-      } else {
-        board.moveMilitary(-e.militaryShields);
-      }
-      handleMilitaryConflict();
-    }
+    decision = currentPlayer->makeDecision(*this);
   } else {
     // Human input - select card first
     bool validCardSelected = false;
@@ -538,267 +582,280 @@ void Game::playTurn() {
       std::string input;
       std::getline(std::cin, input);
 
-      // 检查是否输入了exit
       if (input == "exit" || input == "EXIT" || input == "Exit") {
         std::cout << "\nPlayer has chosen to exit the game. Goodbye!"
                   << std::endl;
-        exit(0); // 退出程序
+        exit(0);
       }
 
-      // 尝试将输入转换为整数
       try {
-        cardIndex = std::stoi(input);
-
-        // Validate card selection
-        if (!board.isCardAccessible(cardIndex) || cardIndex < 0 ||
-            cardIndex >= (int)board.getPyramid().size() ||
-            board.getPyramid()[cardIndex].isTaken) {
+        int selection = std::stoi(input);
+        if (!board.isCardAccessible(selection) || selection < 0 ||
+            selection >= (int)pyramid.size() || pyramid[selection].isTaken) {
           std::cout << "Invalid card! Choose an accessible card." << std::endl;
         } else {
+          decision.cardIndex = selection;
           validCardSelected = true;
         }
-      } catch (const std::invalid_argument &e) {
-        std::cout << "Invalid input. Please enter a card number, or type "
-                     "'exit' to quit."
+      } catch (const std::invalid_argument &) {
+        std::cout << "Invalid input. Please enter a card number, or type 'exit' "
+                     "to quit."
                   << std::endl;
-      } catch (const std::out_of_range &e) {
+      } catch (const std::out_of_range &) {
         std::cout << "Number out of range. Please enter a valid card number."
                   << std::endl;
       }
     }
 
-    // Take the card and show it to the player
-    Card card = board.takeCard(cardIndex);
-    const Cost &cost = card.getCost();
+    const Card &previewCard = pyramid[decision.cardIndex].card;
+    const Cost &cost = previewCard.getCost();
 
     std::cout << "\n========================================" << std::endl;
-    std::cout << "You selected: " << card.getName() << " (Cost: " << cost.coins
-              << " coins";
+    std::cout << "You selected: " << previewCard.getName() << " (Cost: "
+              << cost.coins;
     if (!cost.resources.empty()) {
       std::cout << " + resources";
     }
     std::cout << ")" << std::endl;
     std::cout << "========================================" << std::endl;
 
-    // Check affordability for each action
     bool canBuildCard =
-        currentPlayer->canAfford(cost, *otherPlayer, card.getChainTarget());
-    bool canDiscardForCoins = true; // Always available
+        currentPlayer->canAfford(cost, *otherPlayer, previewCard.getChainTarget());
     bool canBuildWonder = false;
-    int wonderIndex = -1;
-
-    // Check if there are any wonders available to build
     const auto &availableWonders = board.getAvailableWonders();
-    if (!availableWonders.empty()) {
-      // Check if any wonder is affordable
-      for (size_t i = 0; i < availableWonders.size(); ++i) {
-        if (availableWonders[i] != nullptr && !availableWonders[i]->isBuilt() &&
-            currentPlayer->canAfford(availableWonders[i]->getCost(),
-                                     *otherPlayer)) {
-          canBuildWonder = true;
-          break;
-        }
+    for (size_t i = 0; i < availableWonders.size(); ++i) {
+      if (availableWonders[i] != nullptr && !availableWonders[i]->isBuilt() &&
+          currentPlayer->canAfford(availableWonders[i]->getCost(),
+                                   *otherPlayer)) {
+        canBuildWonder = true;
+        break;
       }
     }
 
-    // Display action menu
-    std::cout << "\nChoose action:" << std::endl;
-    std::cout << "1. Build Building";
-    if (!canBuildCard) {
-      std::cout << " [DISABLED - Cannot afford]";
-    }
-    std::cout << std::endl;
-
-    std::cout << "2. Discard for Coins (Gain " << (cost.coins + 2) << " coins)"
-              << std::endl;
-
-    std::cout << "3. Construct Wonder";
-    if (!canBuildWonder) {
-      std::cout << " [DISABLED - No affordable wonders available]";
-    }
-    std::cout << std::endl;
-    std::cout << "4. Exit Game" << std::endl;
-
-    // Get player choice
-    int action = 0;
     bool validChoice = false;
     while (!validChoice) {
-      std::cout << "\nEnter your choice (1-4, or type 'exit'): ";
+      std::cout << "\nChoose action:" << std::endl;
+      std::cout << "1. Build Building";
+      if (!canBuildCard) {
+        std::cout << " [DISABLED - Cannot afford]";
+      }
+      std::cout << std::endl;
+
+      std::cout << "2. Discard for Coins (Gain "
+                << (2 + currentPlayer->getYellowCardCount()) << " coins)"
+                << std::endl;
+
+      std::cout << "3. Construct Wonder";
+      if (!canBuildWonder) {
+        std::cout << " [DISABLED - No affordable wonders available]";
+      }
+      std::cout << std::endl;
+      std::cout << "4. Exit Game" << std::endl;
 
       std::string actionInput;
       std::getline(std::cin, actionInput);
 
-      // 检查是否输入了exit
       if (actionInput == "exit" || actionInput == "EXIT" ||
           actionInput == "Exit") {
         std::cout << "\nPlayer has chosen to exit the game. Goodbye!"
                   << std::endl;
-        exit(0); // 退出程序
+        exit(0);
       }
 
-      // 尝试将输入转换为整数
       try {
-        action = std::stoi(actionInput);
-
-        if (action < 1 || action > 4) {
-          std::cout << "Invalid choice! Please enter a number between 1 and 4."
-                    << std::endl;
-          continue;
-        }
-
-        if (action == 4) {
-          std::cout << "\nPlayer has chosen to exit the game. Goodbye!"
-                    << std::endl;
-          exit(0);
-        }
-
+        int action = std::stoi(actionInput);
         if (action == 1) {
           if (canBuildCard) {
-            // Build the card
-            int actualCost = currentPlayer->calculateCost(
-                cost, *otherPlayer, card.getChainTarget());
-            currentPlayer->payCost(actualCost);
-            currentPlayer->buildCard(card);
-            std::cout << "\n"
-                      << currentPlayer->getName()
-                      << " built: " << card.getName() << " (Paid " << actualCost
-                      << " coins)" << std::endl;
-
-            // Apply military effect
-            const Effect &e = card.getEffect();
-            if (e.militaryShields > 0) {
-              if (currentPlayer == p1) {
-                board.moveMilitary(e.militaryShields);
-              } else {
-                board.moveMilitary(-e.militaryShields);
-              }
-              handleMilitaryConflict();
-            }
+            decision.action = DecisionAction::BUILD_CARD;
             validChoice = true;
           } else {
             std::cout << "ERROR: You cannot afford to build this card!"
                       << std::endl;
           }
         } else if (action == 2) {
-          // Discard for coins
-          // R3.2: 2 coins + 1 coin for every yellow card (Commercial) built
-          int yellowCards =
-              currentPlayer->getCardsByType()[CardType::COMMERCIAL];
-          int coinsGained = 2 + yellowCards;
-          currentPlayer->addCoins(coinsGained);
-          std::cout << "\n"
-                    << currentPlayer->getName() << " discarded "
-                    << card.getName() << " for " << coinsGained
-                    << " coins (2 + " << yellowCards << " yellow cards)."
-                    << std::endl;
+          decision.action = DecisionAction::DISCARD;
           validChoice = true;
         } else if (action == 3) {
-          if (canBuildWonder) {
-            // Show available wonders
-            std::cout << "\nAvailable Wonders:" << std::endl;
-            for (size_t i = 0; i < availableWonders.size(); ++i) {
-              if (availableWonders[i] != nullptr &&
-                  !availableWonders[i]->isBuilt()) {
-                const Cost &wonderCost = availableWonders[i]->getCost();
-                bool affordable =
-                    currentPlayer->canAfford(wonderCost, *otherPlayer);
-                std::cout << i << ". " << availableWonders[i]->getName()
-                          << " (Cost: " << wonderCost.coins << " coins";
-                if (!wonderCost.resources.empty()) {
-                  std::cout << " + resources";
-                }
-                std::cout << ")";
-                if (!affordable) {
-                  std::cout << " [Cannot afford]";
-                }
-                std::cout << std::endl;
-              }
-            }
-
-            // Select wonder
-            bool validWonderSelected = false;
-            while (!validWonderSelected) {
-              std::cout
-                  << "Enter wonder number to build (or type 'exit' to quit): ";
-
-              std::string wonderInput;
-              std::getline(std::cin, wonderInput);
-
-              // 检查是否输入了exit
-              if (wonderInput == "exit" || wonderInput == "EXIT" ||
-                  wonderInput == "Exit") {
-                std::cout << "\nPlayer has chosen to exit the game. Goodbye!"
-                          << std::endl;
-                exit(0); // 退出程序
-              }
-
-              // 尝试将输入转换为整数
-              try {
-                wonderIndex = std::stoi(wonderInput);
-
-                // Validate wonder selection
-                if (wonderIndex >= 0 &&
-                    wonderIndex < (int)availableWonders.size() &&
-                    availableWonders[wonderIndex] != nullptr &&
-                    !availableWonders[wonderIndex]->isBuilt()) {
-
-                  if (currentPlayer->canAfford(
-                          availableWonders[wonderIndex]->getCost(),
-                          *otherPlayer)) {
-                    // Build the wonder
-                    int actualCost = currentPlayer->calculateCost(
-                        availableWonders[wonderIndex]->getCost(), *otherPlayer);
-                    currentPlayer->payCost(actualCost);
-                    currentPlayer->buildWonder(*availableWonders[wonderIndex]);
-                    std::cout << "\n"
-                              << currentPlayer->getName()
-                              << " constructed wonder: "
-                              << availableWonders[wonderIndex]->getName()
-                              << " using card " << card.getName() << std::endl;
-                    validChoice = true;
-                    validWonderSelected = true;
-                  } else {
-                    std::cout << "ERROR: You cannot afford this wonder!"
-                              << std::endl;
-                  }
-                } else {
-                  std::cout << "ERROR: Invalid wonder selection!" << std::endl;
-                }
-              } catch (const std::invalid_argument &e) {
-                std::cout << "Invalid input. Please enter a wonder number, or "
-                             "type 'exit' to quit."
-                          << std::endl;
-              } catch (const std::out_of_range &e) {
-                std::cout << "Number out of range. Please enter a valid wonder "
-                             "number."
-                          << std::endl;
-              }
-            }
-          } else {
+          if (!canBuildWonder) {
             std::cout << "ERROR: No affordable wonders available!" << std::endl;
+            continue;
           }
+
+          std::cout << "\nAvailable Wonders:" << std::endl;
+          for (size_t i = 0; i < availableWonders.size(); ++i) {
+            if (availableWonders[i] != nullptr &&
+                !availableWonders[i]->isBuilt()) {
+              const Cost &wonderCost = availableWonders[i]->getCost();
+              bool affordable = currentPlayer->canAfford(wonderCost, *otherPlayer);
+              std::cout << i << ". " << availableWonders[i]->getName()
+                        << " (Cost: " << wonderCost.coins << " coins";
+              if (!wonderCost.resources.empty()) {
+                std::cout << " + resources";
+              }
+              std::cout << ")";
+              if (!affordable) {
+                std::cout << " [Cannot afford]";
+              }
+              std::cout << std::endl;
+            }
+          }
+
+          std::cout << "Enter wonder number to build (or type 'exit' to quit): ";
+          std::string wonderInput;
+          std::getline(std::cin, wonderInput);
+
+          if (wonderInput == "exit" || wonderInput == "EXIT" ||
+              wonderInput == "Exit") {
+            std::cout << "\nPlayer has chosen to exit the game. Goodbye!"
+                      << std::endl;
+            exit(0);
+          }
+
+          try {
+            int wonderChoice = std::stoi(wonderInput);
+            if (wonderChoice >= 0 &&
+                wonderChoice < static_cast<int>(availableWonders.size()) &&
+                availableWonders[wonderChoice] != nullptr &&
+                !availableWonders[wonderChoice]->isBuilt() &&
+                currentPlayer->canAfford(
+                    availableWonders[wonderChoice]->getCost(), *otherPlayer)) {
+              decision.action = DecisionAction::BUILD_WONDER;
+              decision.wonderIndex = wonderChoice;
+              validChoice = true;
+            } else {
+              std::cout << "ERROR: Invalid wonder selection!" << std::endl;
+            }
+          } catch (const std::exception &) {
+            std::cout << "Invalid input. Please enter a wonder number." << std::endl;
+          }
+        } else if (action == 4) {
+          std::cout << "\nPlayer has chosen to exit the game. Goodbye!"
+                    << std::endl;
+          exit(0);
         } else {
           std::cout << "Invalid choice! Please enter 1, 2, 3, or 4."
                     << std::endl;
         }
-      } catch (const std::invalid_argument &e) {
+      } catch (const std::invalid_argument &) {
         std::cout << "Invalid input. Please enter a number between 1 and 4, or "
                      "type 'exit' to quit."
                   << std::endl;
-      } catch (const std::out_of_range &e) {
+      } catch (const std::out_of_range &) {
         std::cout << "Number out of range. Please enter a valid choice."
                   << std::endl;
       }
     }
   }
 
+  if (decision.action == DecisionAction::EXIT ||
+      decision.cardIndex < 0 || decision.cardIndex >= (int)pyramid.size()) {
+    std::cout << "Invalid decision. Skipping turn." << std::endl;
+    switchTurn();
+    return;
+  }
+
+  Card card = board.takeCard(decision.cardIndex);
+
+  if (decision.action == DecisionAction::BUILD_CARD) {
+    bool canBuild = currentPlayer->canAfford(card.getCost(), *otherPlayer,
+                                            card.getChainTarget());
+    if (!canBuild) {
+      int coinsGained = currentPlayer->discardForCoins();
+      discardPile.push_back(card);
+      std::cout << currentPlayer->getName() << " could not afford "
+                << card.getName() << " and discarded it for " << coinsGained
+                << " coins." << std::endl;
+    } else {
+      int actualCost = currentPlayer->calculateCost(card.getCost(), *otherPlayer,
+                                                   card.getChainTarget());
+      currentPlayer->payCost(actualCost);
+      currentPlayer->buildCard(card);
+      std::cout << currentPlayer->getName() << " built: " << card.getName()
+                << " (Paid " << actualCost << " coins)" << std::endl;
+
+      const Effect &e = card.getEffect();
+      grantExtraTurn = e.playAgain;
+      if (e.militaryShields > 0) {
+        if (currentPlayer == p1) {
+          board.moveMilitary(e.militaryShields, currentPlayer, otherPlayer);
+        } else {
+          board.moveMilitary(-e.militaryShields, currentPlayer, otherPlayer);
+        }
+        handleMilitaryConflict();
+        if (gameOver) {
+          return;
+        }
+      }
+
+      if (board.onSciencePair(*currentPlayer)) {
+        std::cout << "\n*** " << currentPlayer->getName()
+                  << " wins by Scientific Victory! ***" << std::endl;
+        gameOver = true;
+        return;
+      }
+    }
+  } else if (decision.action == DecisionAction::DISCARD) {
+    int coinsGained = currentPlayer->discardForCoins();
+    discardPile.push_back(card);
+    std::cout << currentPlayer->getName() << " discarded " << card.getName()
+              << " for " << coinsGained << " coins." << std::endl;
+  } else if (decision.action == DecisionAction::BUILD_WONDER) {
+    const auto &availableWonders = board.getAvailableWonders();
+    if (decision.wonderIndex >= 0 &&
+        decision.wonderIndex < (int)availableWonders.size() &&
+        availableWonders[decision.wonderIndex] != nullptr &&
+        !availableWonders[decision.wonderIndex]->isBuilt()) {
+      Wonder *targetWonder = availableWonders[decision.wonderIndex];
+      if (currentPlayer->canAfford(targetWonder->getCost(), *otherPlayer)) {
+        int actualCost = currentPlayer->calculateCost(targetWonder->getCost(),
+                                                     *otherPlayer);
+        currentPlayer->payCost(actualCost);
+        Effect wonderEffect = currentPlayer->buildWonder(*targetWonder);
+        discardPile.push_back(card);
+        applyWonderEffect(wonderEffect, currentPlayer, otherPlayer);
+        handleSeventhWonderBuilt();
+        grantExtraTurn = grantExtraTurn || wonderEffect.playAgain;
+        std::cout << currentPlayer->getName()
+                  << " constructed wonder: " << targetWonder->getName()
+                  << " using card " << card.getName() << std::endl;
+
+        if (board.onSciencePair(*currentPlayer)) {
+          std::cout << "\n*** " << currentPlayer->getName()
+                    << " wins by Scientific Victory! ***" << std::endl;
+          gameOver = true;
+          return;
+        }
+      } else {
+        int coinsGained = currentPlayer->discardForCoins();
+        discardPile.push_back(card);
+        std::cout << currentPlayer->getName()
+                  << " could not afford the wonder and discarded "
+                  << card.getName() << " for " << coinsGained << " coins."
+                  << std::endl;
+      }
+    }
+  }
+
+  // 记录本回合的行动玩家以用于下一时代先手判定
+  lastActionPlayerIndex = actingPlayerIndex;
+
   // Check victory
+  if (gameOver) {
+    return;
+  }
   if (checkVictory()) {
     gameOver = true;
     return;
   }
 
-  switchTurn();
+  extraTurnPending = grantExtraTurn;
+  if (extraTurnPending) {
+    std::cout << "Extra turn granted! " << currentPlayer->getName()
+              << " will play again." << std::endl;
+    extraTurnPending = false; // 消耗本次额外回合
+  } else {
+    switchTurn();
+  }
 }
 
 void Game::printBoard() const {
@@ -1125,11 +1182,13 @@ bool Game::checkVictory() {
   if (milPos >= 9) {
     std::cout << "\n*** " << p1->getName() << " wins by Military Victory! ***"
               << std::endl;
+    gameOver = true;
     return true;
   }
   if (milPos <= -9) {
     std::cout << "\n*** " << p2->getName() << " wins by Military Victory! ***"
               << std::endl;
+    gameOver = true;
     return true;
   }
 
@@ -1138,7 +1197,7 @@ bool Game::checkVictory() {
   std::map<ScienceSymbol, int> p1ScienceCounts = p1->getScienceSymbolCounts();
   int p1UniqueSymbols = 0;
   for (const auto &[symbol, count] : p1ScienceCounts) {
-    if (symbol != ScienceSymbol::NONE && count > 0) {
+    if (count > 0) {
       p1UniqueSymbols++;
     }
   }
@@ -1146,6 +1205,7 @@ bool Game::checkVictory() {
     std::cout << "\n*** " << p1->getName() << " wins by Scientific Victory! ***"
               << std::endl;
     std::cout << "Collected 6 different science symbols!" << std::endl;
+    gameOver = true;
     return true;
   }
 
@@ -1153,7 +1213,7 @@ bool Game::checkVictory() {
   std::map<ScienceSymbol, int> p2ScienceCounts = p2->getScienceSymbolCounts();
   int p2UniqueSymbols = 0;
   for (const auto &[symbol, count] : p2ScienceCounts) {
-    if (symbol != ScienceSymbol::NONE && count > 0) {
+    if (count > 0) {
       p2UniqueSymbols++;
     }
   }
@@ -1161,34 +1221,232 @@ bool Game::checkVictory() {
     std::cout << "\n*** " << p2->getName() << " wins by Scientific Victory! ***"
               << std::endl;
     std::cout << "Collected 6 different science symbols!" << std::endl;
+    gameOver = true;
     return true;
   }
 
-  // Civilian victory (end of age 3)
-  if (currentAge == 3) {
-    // Calculate total points (simplified)
-    int p1Score = p1->getCoins() + milPos * 2;
-    int p2Score = p2->getCoins() - milPos * 2;
+  // Final civilian scoring only triggers when Age III pyramid is empty
+  if (currentAge < 3 || !isPyramidEmpty()) {
+    return false;
+  }
 
-    std::cout << "\n=== FINAL SCORES ===" << std::endl;
-    std::cout << p1->getName() << ": " << p1Score << std::endl;
-    std::cout << p2->getName() << ": " << p2Score << std::endl;
+  ScoreBreakdown p1Score = calculateFinalScore(*p1, *p2);
+  ScoreBreakdown p2Score = calculateFinalScore(*p2, *p1);
 
-    if (p1Score > p2Score) {
-      std::cout << "\n*** " << p1->getName() << " wins by Civilian Victory! ***"
+  auto printScore = [](const std::string &name, const ScoreBreakdown &s) {
+    std::cout << name << " => Total: " << s.total() << " | Mil: "
+              << s.military << ", Blue: " << s.blue << ", Green: "
+              << s.green << ", Yellow: " << s.yellow << ", Purple: "
+              << s.purple << ", Wonders: " << s.wonder
+              << ", Progress: " << s.progress << ", Coins: " << s.coins
+              << std::endl;
+  };
+
+  std::cout << "\n=== FINAL SCORING ===" << std::endl;
+  printScore(p1->getName(), p1Score);
+  printScore(p2->getName(), p2Score);
+
+  int totalP1 = p1Score.total();
+  int totalP2 = p2Score.total();
+
+  if (totalP1 > totalP2) {
+    std::cout << "\n*** " << p1->getName()
+              << " wins by Civilian Victory! ***" << std::endl;
+  } else if (totalP2 > totalP1) {
+    std::cout << "\n*** " << p2->getName()
+              << " wins by Civilian Victory! ***" << std::endl;
+  } else {
+    // Tie-breaker: compare blue card victory points
+    if (p1Score.blue > p2Score.blue) {
+      std::cout << "\n*** " << p1->getName()
+                << " wins by Civilian Victory (Blue tie-breaker)! ***"
+                << std::endl;
+    } else if (p2Score.blue > p1Score.blue) {
+      std::cout << "\n*** " << p2->getName()
+                << " wins by Civilian Victory (Blue tie-breaker)! ***"
                 << std::endl;
     } else {
-      std::cout << "\n*** " << p2->getName() << " wins by Civilian Victory! ***"
-                << std::endl;
+      std::cout << "\n*** The game ends in a draw! ***" << std::endl;
     }
-    return true;
   }
 
-  return false;
+  gameOver = true;
+  return true;
 }
 
 void Game::handleMilitaryConflict() {
-  // Simplified - just print current position
   int pos = board.getMilitaryPosition();
   std::cout << "Military position: " << pos << std::endl;
+
+  if (pos >= 9) {
+    gameOver = true;
+    std::cout << "\n*** " << p1->getName() << " wins by Military Victory! ***"
+              << std::endl;
+  } else if (pos <= -9) {
+    gameOver = true;
+    std::cout << "\n*** " << p2->getName() << " wins by Military Victory! ***"
+              << std::endl;
+  }
+}
+
+void Game::applyWonderEffect(const Effect &effect, Player *owner,
+                             Player *opponent) {
+  if (!owner) {
+    return;
+  }
+
+  owner->addVictoryPoints(effect.victoryPoints);
+  owner->addCoins(effect.coins);
+
+  // 军事移动
+  if (effect.militaryShields > 0) {
+    if (owner == p1) {
+      board.moveMilitary(effect.militaryShields, owner, opponent);
+    } else {
+      board.moveMilitary(-effect.militaryShields, owner, opponent);
+    }
+    handleMilitaryConflict();
+    if (gameOver) {
+      return;
+    }
+  }
+
+  for (const auto &[type, amount] : effect.resourcesProduced) {
+    owner->addResource(type, amount);
+  }
+
+  for (const auto &symbol : effect.scienceSymbols) {
+    owner->addScienceSymbol(symbol);
+  }
+
+  if (effect.destroyOpponentCard && opponent) {
+    opponent->removeLastBuiltCard();
+  }
+
+  if (effect.destroyOpponentBrown && opponent) {
+    opponent->removeBuiltCardByType(CardType::RAW_MATERIAL);
+  }
+
+  if (effect.destroyOpponentGrey && opponent) {
+    opponent->removeBuiltCardByType(CardType::MANUFACTURED_GOOD);
+  }
+
+  if (effect.buildFromDiscard && !discardPile.empty()) {
+    Card cardToBuild = discardPile.back();
+    discardPile.pop_back();
+    owner->buildCard(cardToBuild);
+  }
+
+  if (effect.gainProgressToken) {
+    const auto &tokens = board.getAvailableProgressTokens();
+    if (!tokens.empty()) {
+      ProgressToken token = board.takeProgressToken(0);
+      owner->addProgressToken(token);
+    }
+  }
+
+  builtWonderCount++;
+  if (effect.playAgain) {
+    extraTurnPending = true;
+  }
+}
+
+bool Game::isPyramidEmpty() const {
+  for (const auto &slot : board.getPyramid()) {
+    if (!slot.isTaken) {
+      return false;
+    }
+  }
+  return true;
+}
+
+int Game::calculateColorVictoryPoints(const Player &player, CardType type) const {
+  int points = 0;
+  for (const auto &card : player.getBuiltCards()) {
+    if (card.getType() == type) {
+      points += card.getEffect().victoryPoints;
+    }
+  }
+  return points;
+}
+
+int Game::calculateWonderVictoryPoints(const Player &player) const {
+  int points = 0;
+  for (const auto *wonder : player.getBuiltWonders()) {
+    if (wonder) {
+      points += wonder->getEffect().victoryPoints;
+    }
+  }
+  return points;
+}
+
+int Game::calculateProgressTokenPoints(const Player &player) const {
+  int points = 0;
+  bool hasMathematics = false;
+  const auto &tokens = player.getProgressTokens();
+
+  for (const auto &token : tokens) {
+    switch (token.getType()) {
+    case ProgressTokenType::AGRICULTURE:
+      points += 4;
+      break;
+    case ProgressTokenType::PHILOSOPHY:
+      points += 7;
+      break;
+    case ProgressTokenType::MATHEMATICS:
+      hasMathematics = true;
+      break;
+    default:
+      break;
+    }
+  }
+
+  if (hasMathematics) {
+    points += 3 * static_cast<int>(tokens.size());
+  }
+
+  return points;
+}
+
+int Game::calculateMilitaryVictoryPoints(bool isPlayerOne) const {
+  int pos = board.getMilitaryPosition();
+  int distance = isPlayerOne ? pos : -pos;
+  if (distance <= 0) {
+    return 0;
+  }
+
+  if (distance >= 9) {
+    return 10;
+  }
+  if (distance >= 6) {
+    return 5;
+  }
+  if (distance >= 3) {
+    return 2;
+  }
+  return 0;
+}
+
+ScoreBreakdown Game::calculateFinalScore(const Player &player,
+                                         const Player &opponent) const {
+  bool isPlayerOne = (&player == p1);
+  ScoreBreakdown score;
+  score.military = calculateMilitaryVictoryPoints(isPlayerOne);
+  score.blue = calculateColorVictoryPoints(player, CardType::CIVILIAN);
+  score.green = calculateColorVictoryPoints(player, CardType::SCIENTIFIC);
+  score.yellow = calculateColorVictoryPoints(player, CardType::COMMERCIAL);
+  score.purple = calculateColorVictoryPoints(player, CardType::GUILD);
+  score.wonder = calculateWonderVictoryPoints(player);
+  score.progress = calculateProgressTokenPoints(player);
+  score.coins = player.getCoins() / 3;
+
+  (void)opponent; // 预留给未来包含对手相关加分的公会牌
+  return score;
+}
+
+void Game::handleSeventhWonderBuilt() {
+  if (builtWonderCount >= 7 && !eighthWonderRemoved) {
+    board.removeFirstUnbuiltWonder();
+    eighthWonderRemoved = true;
+  }
 }

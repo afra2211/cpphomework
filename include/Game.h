@@ -9,6 +9,22 @@
 #include <string>
 #include <vector>
 
+struct ScoreBreakdown {
+  int military = 0;
+  int blue = 0;
+  int green = 0;
+  int yellow = 0;
+  int purple = 0;
+  int wonder = 0;
+  int progress = 0;
+  int coins = 0;
+
+  int total() const {
+    return military + blue + green + yellow + purple + wonder + progress +
+           coins;
+  }
+};
+
 class Game {
 public:
   Game();
@@ -43,6 +59,7 @@ private:
     bool eighthWonderRemoved;   // 是否已移除第8座奇观
     bool extraTurnPending;      // 当前玩家是否拥有额外回合
     int currentPlayerIndex; // 0 or 1
+    int lastActionPlayerIndex; // 上一回合执行行动的玩家
     int currentAge;
     bool gameOver;
 
@@ -66,6 +83,16 @@ private:
   // 辅助函数
     void shuffleWonders(std::vector<Wonder*>& wonders);
     void printPlayerStatePanel(Player* currentPlayer, Player* otherPlayer);
+    void applyWonderEffect(const Effect& effect, Player* owner, Player* opponent);
+    void handleSeventhWonderBuilt();
+    bool isPyramidEmpty() const;
+
+    ScoreBreakdown calculateFinalScore(const Player& player,
+                                       const Player& opponent) const;
+    int calculateColorVictoryPoints(const Player& player, CardType type) const;
+    int calculateWonderVictoryPoints(const Player& player) const;
+    int calculateProgressTokenPoints(const Player& player) const;
+    int calculateMilitaryVictoryPoints(bool isPlayerOne) const;
   // Helper to get input (from console or AI)
   // void processPlayerMove(Player &player); // Removed
 };

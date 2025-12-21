@@ -19,7 +19,7 @@ public:
   const Cost &getCost() const;
   const Effect &getEffect() const;
   bool isBuilt() const;
-  void build();
+  Effect build();
   // 新增：执行奇迹效果
   void activateEffect(Game& game, Player& owner, Player& opponent);
 

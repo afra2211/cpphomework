@@ -1,3 +1,4 @@
+#include "Game.h"
 #include "Player.h"
 #include <algorithm>
 #include <iostream>
@@ -5,21 +6,26 @@
 // === 构造函数 ===
 // [规则 P.6] PREPARATION - Step 5: "Each player takes 7 coins from the Bank."
 // 初始化玩家状态：7个金币，0军事，0分数
-Player::Player(std::string name)
-    : name(name), coins(7), militaryPower(0), victoryPoints(0) {
+Player::Player(std::string name, bool isAIPlayer)
+    : name(name), coins(7), militaryPower(0), victoryPoints(0),
+      isAI(isAIPlayer) {
   // 初始化交易折扣与科学符号计数
   for (auto resource : {ResourceType::WOOD, ResourceType::STONE, ResourceType::CLAY,
                         ResourceType::PAPER, ResourceType::GLASS}) {
-    tradeDiscounts[resource] = 0;
+    tradeDiscounts[resource] = TradeDiscount{};
   }
   for (auto symbol : {ScienceSymbol::GLOBE, ScienceSymbol::TABLET,
                       ScienceSymbol::GEAR, ScienceSymbol::COMPASS,
                       ScienceSymbol::WHEEL, ScienceSymbol::MORTAR}) {
     scienceSymbolCounter[symbol] = 0;
+    sciencePairClaimed[symbol] = false;
   }
 }
 
 // === Getters (访问器) ===
+Decision Player::makeDecision(const Game &game) { return Decision{}; }
+
+bool Player::isAIPlayer() const { return isAI; }
 std::string Player::getName() const { return name; }
 int Player::getCoins() const { return coins; }
 int Player::getMilitaryPower() const { return militaryPower; }
@@ -43,6 +49,18 @@ const std::vector<ProgressToken> &Player::getProgressTokens() const {
   return progressTokens;
 }
 
+bool Player::hasClaimedSciencePair(ScienceSymbol symbol) const {
+  auto it = sciencePairClaimed.find(symbol);
+  if (it == sciencePairClaimed.end()) {
+    return false;
+  }
+  return it->second;
+}
+
+void Player::markSciencePairClaimed(ScienceSymbol symbol) {
+  sciencePairClaimed[symbol] = true;
+}
+
 // === Setters / Modifiers (修改器) ===
 void Player::addCoins(int amount) { coins += amount; }
 
@@ -54,13 +72,23 @@ void Player::removeCoins(int amount) {
   }
 }
 
-void Player::addResource(ResourceType type, int amount) {
-  resources[type] += amount;
+void Player::addResource(ResourceType type, int amount) { resources[type] += amount; }
+
+void Player::removeResource(ResourceType type, int amount) {
+  resources[type] -= amount;
+  if (resources[type] < 0) {
+    resources[type] = 0;
+  }
 }
 
 void Player::addMilitaryPower(int amount) { militaryPower += amount; }
 
-void Player::addVictoryPoints(int amount) { victoryPoints += amount; }
+void Player::addVictoryPoints(int amount) {
+  victoryPoints += amount;
+  if (victoryPoints < 0) {
+    victoryPoints = 0;
+  }
+}
 
 void Player::addScienceSymbol(ScienceSymbol symbol) {
   scienceSymbols.push_back(symbol);
@@ -71,8 +99,69 @@ void Player::addScienceSymbol(ScienceSymbol symbol) {
   }
 }
 
+void Player::removeScienceSymbol(ScienceSymbol symbol) {
+  if (scienceSymbolCounter[symbol] > 0) {
+    scienceSymbolCounter[symbol]--;
+  }
+
+  for (auto it = scienceSymbols.begin(); it != scienceSymbols.end(); ++it) {
+    if (*it == symbol) {
+      scienceSymbols.erase(it);
+      break;
+    }
+  }
+
+  if (symbol == ScienceSymbol::MORTAR && scienceSymbolCounter[symbol] == 0) {
+    lawSymbolUnlocked = false;
+  }
+}
+
 void Player::addProgressToken(const ProgressToken &token) {
   progressTokens.push_back(token);
+
+  switch (token.getType()) {
+  case ProgressTokenType::AGRICULTURE:
+    addCoins(6);
+    addVictoryPoints(4);
+    break;
+  case ProgressTokenType::ARCHITECTURE:
+    hasArchitecture = true;
+    break;
+  case ProgressTokenType::ECONOMY:
+    hasEconomy = true;
+    break;
+  case ProgressTokenType::LAW:
+    lawSymbolUnlocked = true;
+    addScienceSymbol(ScienceSymbol::NONE);
+    break;
+  case ProgressTokenType::MASONRY:
+    hasMasonry = true;
+    break;
+  case ProgressTokenType::MATHEMATICS:
+    hasMathematics = true;
+    break;
+  case ProgressTokenType::PHILOSOPHY:
+    addVictoryPoints(7);
+    break;
+  case ProgressTokenType::STRATEGY:
+    hasStrategy = true;
+    break;
+  case ProgressTokenType::THEOLOGY:
+    hasTheology = true;
+    break;
+  case ProgressTokenType::URBANISM:
+    hasUrbanism = true;
+    addCoins(6);
+    break;
+  default:
+    break;
+  }
+}
+
+int Player::discardForCoins() {
+  int coinsGained = 2 + yellowCardCount;
+  addCoins(coinsGained);
+  return coinsGained;
 }
 
 // === 核心逻辑：计算建造成本 (包含交易规则) ===
@@ -96,66 +185,37 @@ int Player::calculateCost(const Cost &cost, const Player &opponent,
 
   // 2. 遍历每一个需要的资源类型
   for (auto const &[type, amountNeeded] : cost.resources) {
-    int produced = resources.count(type) ? resources.at(type) : 0;
-    int missing = std::max(0, amountNeeded - produced);
+    int producedBySelf = resources.count(type) ? resources.at(type) : 0;
+    int missing = std::max(0, amountNeeded - producedBySelf);
 
     if (missing > 0) {
       // === 交易逻辑 (Trading Rules) ===
-
       // [规则 P.8] Trading
       // "COST = 2 + number of symbols..."
-      int basePrice = 2;
+      const TradeDiscount &discount = tradeDiscounts.at(type);
 
-      // --- 检查黄色卡牌的交易优惠 (Commercial Cards) ---
-      // [规则 P.8] Trading - Clarifications
-      // "Some commercial Buildings (yellow cards) ... set the cost of some
-      // resources to 1 coin." [规则 P.15] Description - Yellow cards
-      // (改变交易规则为1金币)
-
-      bool hasDiscount = false;
-      for (const auto &card : builtCards) {
-        if (card.getType() == CardType::COMMERCIAL) {
-          // TODO: 等待 Member C 在 Effect 中实现 tradingCosts 字段
-          // 逻辑占位符：如果拥有如 Wood Reserve，则 Wood 价格固定为 1
-          /* if (card.getEffect().tradingCosts.count(type) &&
-          card.getEffect().tradingCosts.at(type) == 1) { basePrice = 1;
-              hasDiscount = true;
-              break;
-          }
-          */
-        }
-      }
-
-      // 计算单价
-      int pricePerUnit = basePrice;
-
-      // 如果没有优惠（basePrice 还是 2），则加上对手的产量
-      if (!hasDiscount) {
-        int opponentProduction = 0;
+      // 默认单价：基础 2 + 对手棕/灰产量（黄牌与奇迹产量不计入）
+      int opponentProduction = 0;
+      if (!discount.priceToOne) {
         const std::vector<Card> &oppCards = opponent.getBuiltCards();
-
         for (const auto &oppCard : oppCards) {
           CardType cType = oppCard.getType();
-
-          // [规则 P.8] Trading - Cost Calculation
-          // "...produced by the brown and grey cards of the opposing city"
-          // [规则 P.8] Clarifications
-          // "The resources produced by yellow cards and by Wonders aren't
-          // factored into trading costs." 重点逻辑：只统计对手的 棕色(原料) 和
-          // 灰色(制造品) 卡牌
           if (cType == CardType::RAW_MATERIAL ||
               cType == CardType::MANUFACTURED_GOOD) {
             const auto &prodMap = oppCard.getEffect().resourcesProduced;
-            if (prodMap.count(type)) {
-              opponentProduction += prodMap.at(type);
+            auto it = prodMap.find(type);
+            if (it != prodMap.end()) {
+              opponentProduction += it->second;
             }
           }
         }
-        // 最终单价 = 基础价格(2) + 对手棕灰卡产量
-        pricePerUnit += opponentProduction;
       }
 
-      // 总成本累加
+      int pricePerUnit = discount.priceToOne ? 1 : 2 + opponentProduction;
+      if (!discount.priceToOne && discount.coinDiscount > 0) {
+        pricePerUnit = std::max(0, pricePerUnit - discount.coinDiscount);
+      }
+
       totalCoinsNeeded += missing * pricePerUnit;
     }
   }
@@ -178,6 +238,10 @@ void Player::buildCard(const Card &card) {
   // [规则 P.10] Construct a Building
   // "This Building now belongs to your city."
   builtCards.push_back(card);
+
+  if (card.getType() == CardType::COMMERCIAL) {
+    yellowCardCount++;
+  }
 
   // 2. 应用即时效果 (Effect)
   const Effect &effect = card.getEffect();
@@ -205,24 +269,51 @@ void Player::buildCard(const Card &card) {
   }
 }
 
-void Player::buildWonder(Wonder &wonder) {
+Effect Player::buildWonder(Wonder &wonder) {
   // [规则 P.11] Construct a Wonder
-  wonder.build();
+  Effect effect = wonder.build();
   builtWonders.push_back(&wonder);
+  return effect;
+}
 
-  // 应用奇迹效果 (逻辑同卡牌)
-  const Effect &effect = wonder.getEffect();
-  addVictoryPoints(effect.victoryPoints);
-  addMilitaryPower(effect.militaryShields);
-  addCoins(effect.coins);
-
-  for (auto const &[type, amount] : effect.resourcesProduced) {
-    addResource(type, amount);
+bool Player::removeLastBuiltCard() {
+  if (builtCards.empty()) {
+    return false;
   }
 
+  const Card &card = builtCards.back();
+  const Effect &effect = card.getEffect();
+
+  addVictoryPoints(-effect.victoryPoints);
+  addMilitaryPower(-effect.militaryShields);
+  for (const auto &[type, amount] : effect.resourcesProduced) {
+    removeResource(type, amount);
+  }
   for (const auto &symbol : effect.scienceSymbols) {
-    addScienceSymbol(symbol);
+    removeScienceSymbol(symbol);
   }
+
+  builtCards.pop_back();
+  return true;
+}
+
+bool Player::removeBuiltCardByType(CardType type) {
+  for (auto it = builtCards.begin(); it != builtCards.end(); ++it) {
+    if (it->getType() == type) {
+      const Effect &effect = it->getEffect();
+      addVictoryPoints(-effect.victoryPoints);
+      addMilitaryPower(-effect.militaryShields);
+      for (const auto &[resource, amount] : effect.resourcesProduced) {
+        removeResource(resource, amount);
+      }
+      for (const auto &symbol : effect.scienceSymbols) {
+        removeScienceSymbol(symbol);
+      }
+      builtCards.erase(it);
+      return true;
+    }
+  }
+  return false;
 }
 
 // === 辅助显示方法 ===
@@ -256,17 +347,15 @@ std::map<ScienceSymbol, int> Player::getScienceSymbolCounts() const {
   counts[ScienceSymbol::COMPASS] = 0;
   counts[ScienceSymbol::WHEEL] = 0;
   counts[ScienceSymbol::MORTAR] = 0;
-  counts[ScienceSymbol::NONE] = 0;
+  counts[ScienceSymbol::NONE] = lawSymbolUnlocked ? 1 : 0;
 
   for (const auto &symbol : scienceSymbols) {
-    if (symbol != ScienceSymbol::NONE) {
-      counts[symbol]++;
-    }
+    counts[symbol]++;
   }
   return counts;
 }
 
-std::map<ResourceType, int> Player::getTradeDiscounts() const {
+std::map<ResourceType, TradeDiscount> Player::getTradeDiscounts() const {
   return tradeDiscounts;
 }
 

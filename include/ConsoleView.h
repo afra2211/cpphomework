@@ -23,6 +23,9 @@ public:
   
   // 3. 金字塔布局显示（独立的金字塔渲染）
   static void printPyramid(const Board &board);
+
+  // 3.b 兼容旧接口的完整版棋盘打印
+  static void printGameBoard(const Game &game);
   
   // 4. 玩家状态显示
   static void printPlayerStatus(const Player &player, bool isCurrentPlayer);

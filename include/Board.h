@@ -12,11 +12,12 @@
 class Player;
 
 struct MilitaryToken {
-  int threshold;    // 触发位置（距离对手首都的格数）
-  int coinPenalty;  // 罚款/奖励金币
-  bool removed{false};
+    int threshold;          // 触发位置（距离对手首都的格数）
+    int coinPenalty;        // 罚款/奖励金币（对手扣除）
+    int victoryPoints = 0;  // 触发方获得的胜利点
+    int extraShields = 0;   // 额外盾牌（继续沿当前方向移动）
+    bool removed{false};
 };
-
 
 // 卡牌槽位结构体：表示金字塔布局中的每个卡牌位置
 struct CardSlot {
@@ -129,7 +130,10 @@ public:
    * @param amount 移动距离（正数向P2移动，负数向P1移动）
    * @note 军事移动由红色卡牌和奇迹的盾牌数量决定
    */
-  void moveMilitary(int amount);
+  void moveMilitary(int amount, Player *mover = nullptr,
+                    Player *opponent = nullptr);
+
+  const std::vector<MilitaryToken> &getMilitaryTokens() const;
 
   const std::vector<MilitaryToken> &getMilitaryTokens() const;
 
@@ -153,6 +157,11 @@ public:
    * @return 被拿走的奇迹指针，如果索引无效返回nullptr
    */
   Wonder *takeWonder(int index);
+
+  /**
+   * @brief 当第七座奇观建成后移除剩余的一座未建奇观
+   */
+  void removeFirstUnbuiltWonder();
 
   // === 新增：进步标记系统接口 ===
 
@@ -189,11 +198,11 @@ public:
 
   /**
    * @brief 科学符号配对事件处理接口
-   * @param symbol 触发的科学符号类型
-   * @note 供Deck类调用，当玩家获得相同科学符号时触发
-   * @note 会检查进步标记获取条件和科技胜利条件
+   * @param player 触发配对的玩家
+   * @return 当玩家收集到6种不同科学符号时返回true
+   * @note 会在玩家拥有2张相同科学符号时让其从公共5枚中拿取一枚进步标记
    */
-  void onSciencePair(ScienceSymbol symbol);
+  bool onSciencePair(Player &player);
 
 private:
   // === 核心游戏数据成员 ===

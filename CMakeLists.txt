@@ -12,28 +12,58 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Include directories
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-# Collect all source files
-file(GLOB_RECURSE SOURCES 
-    "${PROJECT_SOURCE_DIR}/src/*.cpp"
-)
+# Collect all source files (without tests)
+file(GLOB_RECURSE SOURCES "${PROJECT_SOURCE_DIR}/src/*.cpp")
+file(GLOB_RECURSE HEADERS "${PROJECT_SOURCE_DIR}/include/*.h")
 
-file(GLOB_RECURSE HEADERS 
-    "${PROJECT_SOURCE_DIR}/include/*.h"
-)
+# Separate the application entry point so tests can reuse the core sources
+set(MAIN_SOURCE "${PROJECT_SOURCE_DIR}/src/main.cpp")
+list(REMOVE_ITEM SOURCES ${MAIN_SOURCE})
 
-# Create executable
-add_executable(7WondersDuel ${SOURCES} ${HEADERS})
+# Build the shared library with core logic
+add_library(duel_core ${SOURCES} ${HEADERS})
+
+# Application executable
+add_executable(7WondersDuel ${MAIN_SOURCE})
+target_link_libraries(7WondersDuel PRIVATE duel_core)
+
+# Tests
+file(GLOB_RECURSE TEST_SOURCES "${PROJECT_SOURCE_DIR}/tests/*.cpp")
+if(TEST_SOURCES)
+    enable_testing()
+    add_executable(7WondersDuelTests ${TEST_SOURCES})
+    target_link_libraries(7WondersDuelTests PRIVATE duel_core)
+    add_test(NAME 7WondersDuelTests COMMAND 7WondersDuelTests)
+endif()
 
 # Set output directory
 set_target_properties(7WondersDuel PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/build"
 )
 
+if(TARGET 7WondersDuelTests)
+    set_target_properties(7WondersDuelTests PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/build"
+    )
+endif()
+
 # Compiler warnings (optional but recommended)
 if(MSVC)
-    target_compile_options(7WondersDuel PRIVATE /W4)
+    target_compile_options(duel_core PRIVATE /W4)
+    if(TARGET 7WondersDuel)
+        target_compile_options(7WondersDuel PRIVATE /W4)
+    endif()
+    if(TARGET 7WondersDuelTests)
+        target_compile_options(7WondersDuelTests PRIVATE /W4)
+    endif()
 else()
-    target_compile_options(7WondersDuel PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(duel_core PRIVATE -Wall -Wextra -Wpedantic)
+    if(TARGET 7WondersDuel)
+        target_compile_options(7WondersDuel PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    if(TARGET 7WondersDuelTests)
+        target_compile_options(7WondersDuelTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
 endif()
 
 # Print configuration information

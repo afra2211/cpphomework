@@ -254,22 +254,24 @@ std::vector<std::unique_ptr<Wonder>> CardFactory::createAllWonders() {
     std::vector<std::unique_ptr<Wonder>> wonders;
 
     Effect colossusEffect;
-    colossusEffect.militaryShields = 2;
+    colossusEffect.militaryShields = 1;
     colossusEffect.victoryPoints = 3;
-    wonders.push_back(createWonder("COLOSSUS OF RHODES", 3,
+    wonders.push_back(createWonder("COLOSSUS", 3,
                                    {{ResourceType::STONE, 2}, {ResourceType::WOOD, 1}},
                                    colossusEffect));
 
-    Effect lighthouseEffect;
-    lighthouseEffect.victoryPoints = 4;
-    lighthouseEffect.coins = 6;
-    wonders.push_back(createWonder("LIGHTHOUSE OF ALEXANDRIA", 2,
-                                   {{ResourceType::GLASS, 1}, {ResourceType::STONE, 1}},
-                                   lighthouseEffect));
+    Effect circusMaximus;
+    circusMaximus.militaryShields = 1;
+    circusMaximus.victoryPoints = 3;
+    circusMaximus.destroyOpponentGrey = true;
+    wonders.push_back(createWonder("CIRCUS MAXIMUS", 2,
+                                   {{ResourceType::GLASS, 1}, {ResourceType::STONE, 1}, {ResourceType::WOOD, 1}},
+                                   circusMaximus));
 
     Effect statueZeus;
     statueZeus.militaryShields = 1;
     statueZeus.victoryPoints = 3;
+    statueZeus.destroyOpponentBrown = true;
     wonders.push_back(createWonder("STATUE OF ZEUS", 2,
                                    {{ResourceType::CLAY, 1}, {ResourceType::WOOD, 1}, {ResourceType::STONE, 1}},
                                    statueZeus));
@@ -283,18 +285,23 @@ std::vector<std::unique_ptr<Wonder>> CardFactory::createAllWonders() {
 
     Effect greatLibrary;
     greatLibrary.victoryPoints = 4;
+    greatLibrary.gainProgressToken = true;
     wonders.push_back(createWonder("GREAT LIBRARY", 2,
                                    {{ResourceType::PAPER, 1}, {ResourceType::WOOD, 1}, {ResourceType::GLASS, 1}},
                                    greatLibrary));
 
     Effect greatLighthouse;
     greatLighthouse.victoryPoints = 4;
+    greatLighthouse.resourcesProduced[ResourceType::WOOD] = 1;
+    greatLighthouse.resourcesProduced[ResourceType::STONE] = 1;
+    greatLighthouse.resourcesProduced[ResourceType::CLAY] = 1;
     wonders.push_back(createWonder("GREAT LIGHTHOUSE", 2,
                                    {{ResourceType::STONE, 2}, {ResourceType::GLASS, 1}},
                                    greatLighthouse));
 
     Effect mausoleum;
     mausoleum.victoryPoints = 2;
+    mausoleum.buildFromDiscard = true;
     wonders.push_back(createWonder("MAUSOLEUM", 1,
                                    {{ResourceType::GLASS, 1}, {ResourceType::PAPER, 1}, {ResourceType::STONE, 1}},
                                    mausoleum));
@@ -320,11 +327,13 @@ std::vector<std::unique_ptr<Wonder>> CardFactory::createAllWonders() {
                                    {{ResourceType::WOOD, 2}, {ResourceType::CLAY, 1}},
                                    hangingGardens));
 
-    Effect greatWall;
-    greatWall.militaryShields = 2;
-    wonders.push_back(createWonder("GREAT WALL", 3,
-                                   {{ResourceType::STONE, 3}, {ResourceType::WOOD, 1}},
-                                   greatWall));
+    Effect piraeus;
+    piraeus.resourcesProduced[ResourceType::GLASS] = 1;
+    piraeus.resourcesProduced[ResourceType::PAPER] = 1;
+    piraeus.playAgain = true;
+    wonders.push_back(createWonder("PIRAEUS", 2,
+                                   {{ResourceType::CLAY, 2}, {ResourceType::GLASS, 1}},
+                                   piraeus));
 
     Effect appianWay;
     appianWay.victoryPoints = 3;

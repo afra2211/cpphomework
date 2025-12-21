@@ -22,8 +22,12 @@ Board::Board() : militaryPosition(MILITARY_START_POSITION) {
  * @param deck 该时代的卡牌堆（应包含20张卡牌）
  * @note 根据时代不同采用不同的金字塔布局结构
  */
-void Board::setupAge(int age, std::vector<Card> deck) {
+void Board::setupAge(int age, std::vector<Card> deck,
+                     const std::vector<Card> &removed) {
   pyramid.clear(); // 清空现有金字塔布局
+
+  // 预留处理：如果需要展示/记录被移除的卡牌，可在此使用 removed
+  (void)removed;
 
   // 根据时代选择对应的布局设置函数
   if (age == 1)

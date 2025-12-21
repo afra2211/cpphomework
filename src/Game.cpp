@@ -28,6 +28,14 @@ void Game::init(std::string p1Name, bool p1IsAI, std::string p2Name,
   currentAge = 1;
   gameOver = false;
 
+  board.setupProgressTokens();
+  // 冲突棋子重置到起始位置
+  board.moveMilitary(Board::MILITARY_START_POSITION - board.getMilitaryPosition());
+
+  // 按规则确保双方起始 7 金币
+  p1->addCoins(7 - p1->getCoins());
+  p2->addCoins(7 - p2->getCoins());
+
   setupWonders();
 }
 
@@ -498,14 +506,15 @@ void Game::playAge(int age) {
   std::cout << "========================================\n" << std::endl;
 
   std::vector<Card> deck;
+  std::vector<Card> removed;
   if (age == 1)
-    deck = Deck::getAge1Deck();
+    deck = Deck::getAge1Deck(false, &removed);
   else if (age == 2)
-    deck = Deck::getAge2Deck();
+    deck = Deck::getAge2Deck(false, &removed);
   else
-    deck = Deck::getAge3Deck();
+    deck = Deck::getAge3Deck(false, &removed);
 
-  board.setupAge(age, deck);
+  board.setupAge(age, deck, removed);
 }
 
 void Game::playTurn() {

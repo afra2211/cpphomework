@@ -81,7 +81,8 @@ public:
    * @note 已实现：R2.1 Age卡牌布局功能
    * @note 时代1和3使用正金字塔布局，时代2使用倒金字塔布局
    */
-  void setupAge(int age, std::vector<Card> deck);
+  void setupAge(int age, std::vector<Card> deck,
+                const std::vector<Card> &removed = {});
 
   /**
    * @brief 获取当前金字塔布局的所有卡牌槽位

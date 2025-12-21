@@ -74,10 +74,12 @@ public:
                const Effect &effect);
 
   // === 4. 牌堆生成接口 (Deck Generation) ===
-  // 返回智能指针的向量，这是现代 C++ 处理多态对象集合的标准做法
-  std::vector<std::unique_ptr<Card>> createAge1Deck();
-  std::vector<std::unique_ptr<Card>> createAge2Deck();
-  std::vector<std::unique_ptr<Card>> createAge3Deck();
+  // 返回值按规则构建完整牌堆，供 Deck 进行洗牌与移除
+  std::vector<Card> createAge1Deck();
+  std::vector<Card> createAge2Deck();
+  std::vector<Card> createAge3Deck();
+
+  std::vector<Card> createGuildCards();
 
   // 生成所有 12 个奇迹
   std::vector<std::unique_ptr<Wonder>> createAllWonders();

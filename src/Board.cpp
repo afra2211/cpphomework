@@ -172,10 +172,6 @@ const std::vector<MilitaryToken> &Board::getMilitaryTokens() const {
   return militaryTokens;
 }
 
-const std::vector<MilitaryToken> &Board::getMilitaryTokens() const {
-  return militaryTokens;
-}
-
 /**
  * @brief 获取当前可用的奇迹列表
  * @return 可用奇迹指针向量的只读引用

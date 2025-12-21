@@ -135,8 +135,6 @@ public:
 
   const std::vector<MilitaryToken> &getMilitaryTokens() const;
 
-  const std::vector<MilitaryToken> &getMilitaryTokens() const;
-
   // === 奇迹系统功能 ===
 
   /**

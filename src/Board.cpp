@@ -7,7 +7,11 @@
  * @brief Board类构造函数
  * @note 初始化军事位置为0（中央），并初始化所有进步标记
  */
-Board::Board() : militaryPosition(0) {
+Board::Board() : militaryPosition(MILITARY_START_POSITION) {
+  // 初始化军事区段 token 配置（两侧对称），默认未触发
+  militaryTokens = {{3, 2, false}, {6, 5, false}, {9, 10, false},
+                    {-3, 2, false}, {-6, 5, false}, {-9, 10, false}};
+
   // === 新增：初始化进步标记系统 ===
   initializeAllProgressTokens();
 }
@@ -18,8 +22,12 @@ Board::Board() : militaryPosition(0) {
  * @param deck 该时代的卡牌堆（应包含20张卡牌）
  * @note 根据时代不同采用不同的金字塔布局结构
  */
-void Board::setupAge(int age, std::vector<Card> deck) {
+void Board::setupAge(int age, std::vector<Card> deck,
+                     const std::vector<Card> &removed) {
   pyramid.clear(); // 清空现有金字塔布局
+
+  // 预留处理：如果需要展示/记录被移除的卡牌，可在此使用 removed
+  (void)removed;
 
   // 根据时代选择对应的布局设置函数
   if (age == 1)
@@ -116,6 +124,10 @@ int Board::getMilitaryPosition() const { return militaryPosition; }
 void Board::moveMilitary(int amount) {
   militaryPosition += amount;
   // 注意：边界限制（-9到9）和军事胜利判定应由Game类处理
+}
+
+const std::vector<MilitaryToken> &Board::getMilitaryTokens() const {
+  return militaryTokens;
 }
 
 /**

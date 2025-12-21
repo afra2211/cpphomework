@@ -10,39 +10,26 @@
 
 class Deck {
 public:
-  // 获取对应时代的牌组（新增洗牌功能）
-  static std::vector<std::shared_ptr<Card>> getAge1Deck(bool shuffle = false) {
-    auto deck = CardFactory::getInstance().createAge1Deck();
-    if (shuffle) shuffleDeck(deck);
-    return deck;
-  }
+  // 获取对应时代的牌组（新增洗牌功能），可选返回被移除的3张卡牌
+  static std::vector<Card> getAge1Deck(bool shuffle = false,
+                                       std::vector<Card> *removed = nullptr);
 
-  static std::vector<std::shared_ptr<Card>> getAge2Deck(bool shuffle = false) {
-    auto deck = CardFactory::getInstance().createAge2Deck();
-    if (shuffle) shuffleDeck(deck);
-    return deck;
-  }
+  static std::vector<Card> getAge2Deck(bool shuffle = false,
+                                       std::vector<Card> *removed = nullptr);
 
-  static std::vector<std::shared_ptr<Card>> getAge3Deck(bool shuffle = false) {
-    auto deck = CardFactory::getInstance().createAge3Deck();
-    if (shuffle) shuffleDeck(deck);
-    return deck;
-  }
+  static std::vector<Card> getAge3Deck(bool shuffle = false,
+                                       std::vector<Card> *removed = nullptr);
 
   // 获取奇迹牌组
-  static std::vector<Wonder> getWonders(bool shuffle = false) {
-    auto wonders = createWonders();  // 假设内部实现牌组创建
-    if (shuffle) shuffleDeck(wonders);
-    return wonders;
-  }
+  static std::vector<Wonder> getWonders(bool shuffle = false);
 
 private:
   // 洗牌函数（
   template <typename T>
-  static void shuffleDeck(std::vector<T>& deck) {
-    static std::random_device rd;  // 随机设备，用于种子
-    static std::mt19937 g(rd());   // 梅森旋转算法随机数生成器
-    std::shuffle(deck.begin(), deck.end(), g);  // 洗牌
+  static void shuffleDeck(std::vector<T> &deck) {
+    static std::random_device rd;   // 随机设备，用于种子
+    static std::mt19937 g(rd());    // 梅森旋转算法随机数生成器
+    std::shuffle(deck.begin(), deck.end(), g); // 洗牌
   }
 
   // 补充createWonders的声明

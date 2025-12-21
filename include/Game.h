@@ -4,6 +4,7 @@
 #include "Board.h"
 #include "Deck.h"
 #include "Player.h"
+#include <deque>
 #include <memory>
 #include <string>
 #include <vector>
@@ -32,6 +33,15 @@ private:
     Player *p1;
     Player *p2;
     Board board;
+    std::vector<Card> discardPile;     // 弃牌堆
+    int bankCoins;                     // 银行金币（抽象为充足的金库）
+    std::vector<ProgressToken>
+        removedProgressTokens; // 被移除的进步标记池
+    std::vector<ProgressToken>
+        claimedProgressTokens; // 已被玩家获得的进步标记记录
+    int builtWonderCount;       // 已建奇观数量（全局计数）
+    bool eighthWonderRemoved;   // 是否已移除第8座奇观
+    bool extraTurnPending;      // 当前玩家是否拥有额外回合
     int currentPlayerIndex; // 0 or 1
     int currentAge;
     bool gameOver;

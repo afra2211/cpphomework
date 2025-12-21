@@ -1,6 +1,7 @@
 #ifndef PLAYER_H
 #define PLAYER_H
 
+#include "Board.h"
 #include "Card.h"
 #include "Resources.h"
 #include "Wonder.h"
@@ -43,6 +44,7 @@ public:
   const std::vector<ScienceSymbol> &getScienceSymbols() const;
   const std::vector<Card> &getBuiltCards() const;
   const std::vector<Wonder *> &getBuiltWonders() const;
+  const std::vector<ProgressToken> &getProgressTokens() const;
 
   // Modifiers
   void addCoins(int amount);
@@ -51,6 +53,7 @@ public:
   void addMilitaryPower(int amount);
   void addVictoryPoints(int amount);
   void addScienceSymbol(ScienceSymbol symbol);
+  void addProgressToken(const ProgressToken &token);
 
   // 核心交易逻辑 (Core Logic)
   bool canAfford(const Cost &cost, const Player &opponent,
@@ -68,6 +71,9 @@ public:
   std::string getCardTypeName(CardType type) const;
   std::string getResourceTypeName(ResourceType type) const;
   std::map<ScienceSymbol, int> getScienceSymbolCounts() const;
+  std::map<ResourceType, int> getTradeDiscounts() const;
+  int getYellowCardCount() const;
+  bool hasLawSymbol() const;
 
 protected:
   // === [关键点 4] 受保护的成员 (Protected Members) ===
@@ -80,8 +86,14 @@ protected:
   int victoryPoints;
   std::map<ResourceType, int> resources;
   std::vector<ScienceSymbol> scienceSymbols;
+  std::map<ScienceSymbol, int> scienceSymbolCounter; // 含 Law 进步标记
   std::vector<Card> builtCards;
   std::vector<Wonder *> builtWonders;
+  std::vector<ProgressToken> progressTokens; // 已获得进步标记
+  std::map<ResourceType, int>
+      tradeDiscounts;        // 交易折扣（黄牌/奇观/进步来源）
+  int yellowCardCount = 0;   // 弃牌收益缓存
+  bool lawSymbolUnlocked{false};
 };
 
 #endif // PLAYER_H

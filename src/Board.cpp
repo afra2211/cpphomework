@@ -7,7 +7,11 @@
  * @brief Board类构造函数
  * @note 初始化军事位置为0（中央），并初始化所有进步标记
  */
-Board::Board() : militaryPosition(0) {
+Board::Board() : militaryPosition(MILITARY_START_POSITION) {
+  // 初始化军事区段 token 配置（两侧对称），默认未触发
+  militaryTokens = {{3, 2, false}, {6, 5, false}, {9, 10, false},
+                    {-3, 2, false}, {-6, 5, false}, {-9, 10, false}};
+
   // === 新增：初始化进步标记系统 ===
   initializeAllProgressTokens();
 }
@@ -116,6 +120,10 @@ int Board::getMilitaryPosition() const { return militaryPosition; }
 void Board::moveMilitary(int amount) {
   militaryPosition += amount;
   // 注意：边界限制（-9到9）和军事胜利判定应由Game类处理
+}
+
+const std::vector<MilitaryToken> &Board::getMilitaryTokens() const {
+  return militaryTokens;
 }
 
 /**

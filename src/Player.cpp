@@ -6,7 +6,18 @@
 // [规则 P.6] PREPARATION - Step 5: "Each player takes 7 coins from the Bank."
 // 初始化玩家状态：7个金币，0军事，0分数
 Player::Player(std::string name)
-    : name(name), coins(7), militaryPower(0), victoryPoints(0) {}
+    : name(name), coins(7), militaryPower(0), victoryPoints(0) {
+  // 初始化交易折扣与科学符号计数
+  for (auto resource : {ResourceType::WOOD, ResourceType::STONE, ResourceType::CLAY,
+                        ResourceType::PAPER, ResourceType::GLASS}) {
+    tradeDiscounts[resource] = 0;
+  }
+  for (auto symbol : {ScienceSymbol::GLOBE, ScienceSymbol::TABLET,
+                      ScienceSymbol::GEAR, ScienceSymbol::COMPASS,
+                      ScienceSymbol::WHEEL, ScienceSymbol::MORTAR}) {
+    scienceSymbolCounter[symbol] = 0;
+  }
+}
 
 // === Getters (访问器) ===
 std::string Player::getName() const { return name; }
@@ -26,6 +37,10 @@ const std::vector<Card> &Player::getBuiltCards() const { return builtCards; }
 
 const std::vector<Wonder *> &Player::getBuiltWonders() const {
   return builtWonders;
+}
+
+const std::vector<ProgressToken> &Player::getProgressTokens() const {
+  return progressTokens;
 }
 
 // === Setters / Modifiers (修改器) ===
@@ -49,6 +64,15 @@ void Player::addVictoryPoints(int amount) { victoryPoints += amount; }
 
 void Player::addScienceSymbol(ScienceSymbol symbol) {
   scienceSymbols.push_back(symbol);
+  scienceSymbolCounter[symbol]++;
+  if (symbol == ScienceSymbol::NONE && lawSymbolUnlocked) {
+    // Law 进步标记作为第七符号计入 NONE 占位
+    scienceSymbolCounter[symbol] = 1;
+  }
+}
+
+void Player::addProgressToken(const ProgressToken &token) {
+  progressTokens.push_back(token);
 }
 
 // === 核心逻辑：计算建造成本 (包含交易规则) ===
@@ -241,6 +265,14 @@ std::map<ScienceSymbol, int> Player::getScienceSymbolCounts() const {
   }
   return counts;
 }
+
+std::map<ResourceType, int> Player::getTradeDiscounts() const {
+  return tradeDiscounts;
+}
+
+int Player::getYellowCardCount() const { return yellowCardCount; }
+
+bool Player::hasLawSymbol() const { return lawSymbolUnlocked; }
 
 std::string Player::getCardTypeName(CardType type) const {
   switch (type) {

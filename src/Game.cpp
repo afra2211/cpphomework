@@ -8,14 +8,22 @@
 #include <random>
 
 Game::Game()
-    : p1(nullptr), p2(nullptr), currentPlayerIndex(0), currentAge(1),
-      gameOver(false) {}
+    : p1(nullptr), p2(nullptr), bankCoins(0), builtWonderCount(0),
+      eighthWonderRemoved(false), extraTurnPending(false),
+      currentPlayerIndex(0), currentAge(1), gameOver(false) {}
 
 void Game::init(std::string p1Name, bool p1IsAI, std::string p2Name,
                 bool p2IsAI) {
   p1 = new Player(p1Name, p1IsAI);
   p2 = new Player(p2Name, p2IsAI);
   board = Board();
+  discardPile.clear();
+  bankCoins = 0; // 抽象银行：默认不封顶
+  removedProgressTokens.clear();
+  claimedProgressTokens.clear();
+  builtWonderCount = 0;
+  eighthWonderRemoved = false;
+  extraTurnPending = false;
   currentPlayerIndex = 0;
   currentAge = 1;
   gameOver = false;

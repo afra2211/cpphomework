@@ -10,9 +10,11 @@
  */
 Board::Board() : militaryPosition(MILITARY_START_POSITION) {
   // 初始化军事区段 token 配置（两侧对称），默认未触发
-  militaryTokens = {
-      {3, 2, 0, 0, false},  {6, 5, 0, 0, false},  {9, 10, 0, 0, false},
-      {-3, 2, 0, 0, false}, {-6, 5, 0, 0, false}, {-9, 10, 0, 0, false}};
+militaryTokens = {
+    {3, 2, 0, 0, false}, {6, 5, 0, 0, false}, {9, 10, 0, 0, false},
+    {-3, 2, 0, 0, false}, {-6, 5, 0, 0, false}, {-9, 10, 0, 0, false}
+};
+
 
   // === 新增：初始化进步标记系统 ===
   initializeAllProgressTokens();
@@ -164,6 +166,10 @@ void Board::moveMilitary(int amount, Player *mover, Player *opponent) {
   if (extraMovement != 0) {
     moveMilitary(extraMovement, mover, opponent);
   }
+}
+
+const std::vector<MilitaryToken> &Board::getMilitaryTokens() const {
+  return militaryTokens;
 }
 
 const std::vector<MilitaryToken> &Board::getMilitaryTokens() const {

@@ -12,13 +12,12 @@
 class Player;
 
 struct MilitaryToken {
-  int threshold;          // 触发位置（距离对手首都的格数）
-  int coinPenalty;        // 罚款/奖励金币（对手扣除）
-  int victoryPoints = 0;  // 触发方获得的胜利点
-  int extraShields = 0;   // 额外盾牌（继续沿当前方向移动）
-  bool removed{false};
+    int threshold;          // 触发位置（距离对手首都的格数）
+    int coinPenalty;        // 罚款/奖励金币（对手扣除）
+    int victoryPoints = 0;  // 触发方获得的胜利点
+    int extraShields = 0;   // 额外盾牌（继续沿当前方向移动）
+    bool removed{false};
 };
-
 
 // 卡牌槽位结构体：表示金字塔布局中的每个卡牌位置
 struct CardSlot {
@@ -133,6 +132,8 @@ public:
    */
   void moveMilitary(int amount, Player *mover = nullptr,
                     Player *opponent = nullptr);
+
+  const std::vector<MilitaryToken> &getMilitaryTokens() const;
 
   const std::vector<MilitaryToken> &getMilitaryTokens() const;
 

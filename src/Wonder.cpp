@@ -1,20 +1,15 @@
 #include "Wonder.h"
+#include "Card.h"
 #include "Game.h"
 #include "Player.h"
-#include "Card.h"
 #include <stdexcept>
 
-std::string Wonder::getName() const {
-    return name;
-}
 
-const Cost& Wonder::getCost() const {
-    return cost;
-}
+std::string Wonder::getName() const { return name; }
 
-const Effect& Wonder::getEffect() const {
-    return effect;
-}
+const Cost &Wonder::getCost() const { return cost; }
+
+const Effect &Wonder::getEffect() const { return effect; }
 
 bool Wonder::isBuilt() const { return built; }
 
@@ -24,7 +19,7 @@ Effect Wonder::build() {
 }
 
 // 新增：实现奇迹效果激活
-void Wonder::activateEffect(Game& game, Player& owner, Player& opponent) {
+void Wonder::activateEffect(Game & /*game*/, Player &owner, Player &opponent) {
   const Effect &e = getEffect();
 
   // 处理基本资源和分数

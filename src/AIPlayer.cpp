@@ -1,29 +1,28 @@
 // AIPlayer.cpp - 成员D (HY) 完成
 #include "AIPlayer.h"
-#include "Game.h"
 #include "Board.h"
 #include "Card.h"
 #include "ConsoleView.h" // 使用你定义的视图接口来输出
-#include <vector>
+#include "Game.h"
 #include <cstdlib> // 用于 rand()
 #include <ctime>   // 用于 srand()
 #include <limits>
+#include <vector>
 
 AIPlayer::AIPlayer(std::string name)
     : Player(name, true) // 调用基类构造函数，标记为AI
 {
-    // 初始化随机数种子，用于随机选择
-    std::srand(static_cast<unsigned int>(std::time(nullptr)));
+  // 初始化随机数种子，用于随机选择
+  std::srand(static_cast<unsigned int>(std::time(nullptr)));
 }
 
-AIPlayer::~AIPlayer()
-{
-    // 没有动态分配的资源，留空
+AIPlayer::~AIPlayer() {
+  // 没有动态分配的资源，留空
 }
 
 // 核心AI决策函数 - 完整实现
 Decision AIPlayer::makeDecision(const Game &game) {
-  ConsoleView::printInfo(getName() + " (AI) 开始思考...");
+  ConsoleView::printInfo(getName() + "(AI) begins to think...");
 
   const Board &board = game.getBoard();
   const Player *selfPtr = this;
@@ -40,7 +39,7 @@ Decision AIPlayer::makeDecision(const Game &game) {
 
   Decision decision;
   if (accessibleIndices.empty()) {
-    ConsoleView::printError("AI错误：没有可访问的卡牌。");
+    ConsoleView::printError("AI error: No cards are accessible.");
     decision.action = DecisionAction::EXIT;
     return decision;
   }
@@ -81,9 +80,10 @@ Decision AIPlayer::makeDecision(const Game &game) {
     const Card &card = pyramid[cardIndex].card;
     if (canAfford(card.getCost(), opponent)) {
       int score = evaluateCard(card);
-      ConsoleView::printInfo("  评估卡牌 [" + std::to_string(cardIndex) + "]: " +
-                              card.getName() + "，得分: " +
-                              std::to_string(score));
+      // ConsoleView::printInfo("  评估卡牌 [" + std::to_string(cardIndex) + "]:
+      // " +
+      //                         card.getName() + "，得分: " +
+      //                         std::to_string(score));
       if (score > bestCardScore) {
         bestCardScore = score;
         bestCardIndex = cardIndex;

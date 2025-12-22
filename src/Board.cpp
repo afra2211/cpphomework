@@ -10,11 +10,9 @@
  */
 Board::Board() : militaryPosition(MILITARY_START_POSITION) {
   // 初始化军事区段 token 配置（两侧对称），默认未触发
-militaryTokens = {
-    {3, 2, 0, 0, false}, {6, 5, 0, 0, false}, {9, 10, 0, 0, false},
-    {-3, 2, 0, 0, false}, {-6, 5, 0, 0, false}, {-9, 10, 0, 0, false}
-};
-
+  militaryTokens = {{3, 2, 0, 0, false},  {6, 5, 0, 0, false},
+                    {9, 10, 0, 0, false}, {-3, 2, 0, 0, false},
+                    {-6, 5, 0, 0, false}, {-9, 10, 0, 0, false}};
 
   // === 新增：初始化进步标记系统 ===
   initializeAllProgressTokens();
@@ -59,7 +57,7 @@ const std::vector<CardSlot> &Board::getPyramid() const { return pyramid; }
  */
 bool Board::isCardAccessible(int index) const {
   // 检查索引有效性
-  if (index < 0 || index >= pyramid.size())
+  if (index < 0 || index >= static_cast<int>(pyramid.size()))
     return false;
 
   // 检查卡牌是否已被玩家拿走
@@ -195,7 +193,7 @@ void Board::setAvailableWonders(const std::vector<Wonder *> &wonders) {
  */
 Wonder *Board::takeWonder(int index) {
   // 检查索引有效性
-  if (index < 0 || index >= availableWonders.size())
+  if (index < 0 || index >= static_cast<int>(availableWonders.size()))
     return nullptr;
 
   // 获取奇迹指针并从可用列表中移除
@@ -258,7 +256,7 @@ const std::vector<ProgressToken> &Board::getAvailableProgressTokens() const {
  */
 ProgressToken Board::takeProgressToken(int index) {
   // 异常处理：检查索引有效性
-  if (index < 0 || index >= availableProgressTokens.size()) {
+  if (index < 0 || index >= static_cast<int>(availableProgressTokens.size())) {
     throw std::runtime_error("Invalid progress token index");
   }
 

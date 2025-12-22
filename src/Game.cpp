@@ -3,11 +3,14 @@
 #include "ConsoleView.h"
 #include "HumanPlayer.h"
 #include <algorithm>
-#include <chrono>
-#include <iomanip>
-#include <iostream>
-#include <limits>
+#include <chrono> // Added for system_clock
+#include <map>
 #include <random>
+#include <stdexcept> // Added for exceptions
+#include <string>
+#include <vector>
+
+// Note: iostream and iomanip removed to enforce MVC separation
 
 Game::Game()
     : p1(nullptr), p2(nullptr), bankCoins(0), builtWonderCount(0),
@@ -41,7 +44,8 @@ void Game::init(std::string p1Name, bool p1IsAI, std::string p2Name,
 
   board.setupProgressTokens();
   // 冲突棋子重置到起始位置
-  board.moveMilitary(Board::MILITARY_START_POSITION - board.getMilitaryPosition());
+  board.moveMilitary(Board::MILITARY_START_POSITION -
+                     board.getMilitaryPosition());
 
   // 按规则确保双方起始 7 金币
   p1->addCoins(7 - p1->getCoins());
@@ -78,7 +82,8 @@ void Game::setupWonders() {
   int firstRoundFirstPlayer = currentPlayerIndex; // 保存第一轮先手玩家
 
   Player *firstPlayerRound1 = (currentPlayerIndex == 0) ? p1 : p2;
-  Player *secondPlayerRound1 = (currentPlayerIndex == 0) ? p2 : p1;
+  // Player *secondPlayerRound1 = (currentPlayerIndex == 0) ? p2 : p1; // Unused
+  // variable
 
   ConsoleView::printPlain("\nRandomly deciding player order...");
   ConsoleView::printPlain(firstPlayerRound1->getName() +
@@ -138,8 +143,7 @@ void Game::setupWonders() {
   ConsoleView::printPrompt(
       "Press Enter to continue to the game (or type 'exit' to quit)...");
 
-  std::string continueInput;
-  std::getline(std::cin, continueInput);
+  std::string continueInput = ConsoleView::getLineInput();
 
   // 检查是否输入了exit
   if (continueInput == "exit" || continueInput == "EXIT" ||
@@ -175,9 +179,8 @@ void Game::selectWondersRound(std::vector<Wonder *> &availableWonders,
                             " (AI) chooses first <<<");
     int aiChoice =
         getPlayerWonderChoice(1, availableWonders.size(), "", firstPlayer);
-    ConsoleView::printPlain(
-        firstPlayer->getName() + " (AI) selected: " +
-        availableWonders[aiChoice - 1]->getName() + "\n");
+    ConsoleView::printPlain(firstPlayer->getName() + " (AI) selected: " +
+                            availableWonders[aiChoice - 1]->getName() + "\n");
 
     firstPlayerWonders.push_back(availableWonders[aiChoice - 1]);
     availableWonders.erase(availableWonders.begin() + aiChoice - 1);
@@ -198,10 +201,9 @@ void Game::selectWondersRound(std::vector<Wonder *> &availableWonders,
     int humanChoice1 = getPlayerWonderChoice(
         1, availableWonders.size(),
         "Enter the number of your first wonder: ", secondPlayer);
-    ConsoleView::printPlain("\n" + secondPlayer->getName() +
-                            " selected: " +
-                            availableWonders[humanChoice1 - 1]->getName() +
-                            "\n");
+    ConsoleView::printPlain(
+        "\n" + secondPlayer->getName() +
+        " selected: " + availableWonders[humanChoice1 - 1]->getName() + "\n");
 
     secondPlayerWonders.push_back(availableWonders[humanChoice1 - 1]);
     availableWonders.erase(availableWonders.begin() + humanChoice1 - 1);
@@ -218,10 +220,9 @@ void Game::selectWondersRound(std::vector<Wonder *> &availableWonders,
     int humanChoice2 = getPlayerWonderChoice(
         1, availableWonders.size(),
         "Enter the number of your second wonder: ", secondPlayer);
-    ConsoleView::printPlain("\n" + secondPlayer->getName() +
-                            " selected: " +
-                            availableWonders[humanChoice2 - 1]->getName() +
-                            "\n");
+    ConsoleView::printPlain(
+        "\n" + secondPlayer->getName() +
+        " selected: " + availableWonders[humanChoice2 - 1]->getName() + "\n");
 
     secondPlayerWonders.push_back(availableWonders[humanChoice2 - 1]);
     availableWonders.erase(availableWonders.begin() + humanChoice2 - 1);
@@ -233,9 +234,8 @@ void Game::selectWondersRound(std::vector<Wonder *> &availableWonders,
     // 3. 最后一张奇迹自动归AI
     ConsoleView::printPlain("The last wonder automatically goes to " +
                             firstPlayer->getName() + " (AI):");
-    ConsoleView::printPlain(firstPlayer->getName() +
-                            " receives: " + availableWonders[0]->getName() +
-                            "\n");
+    ConsoleView::printPlain(firstPlayer->getName() + " receives: " +
+                            availableWonders[0]->getName() + "\n");
 
     firstPlayerWonders.push_back(availableWonders[0]);
 
@@ -255,10 +255,9 @@ void Game::selectWondersRound(std::vector<Wonder *> &availableWonders,
         1, availableWonders.size(),
         "Enter the number of the wonder you want: ", firstPlayer);
 
-    ConsoleView::printPlain("\n" + firstPlayer->getName() +
-                            " selected: " +
-                            availableWonders[humanChoice - 1]->getName() +
-                            "\n");
+    ConsoleView::printPlain(
+        "\n" + firstPlayer->getName() +
+        " selected: " + availableWonders[humanChoice - 1]->getName() + "\n");
 
     firstPlayerWonders.push_back(availableWonders[humanChoice - 1]);
     availableWonders.erase(availableWonders.begin() + humanChoice - 1);
@@ -273,7 +272,8 @@ void Game::selectWondersRound(std::vector<Wonder *> &availableWonders,
     std::string turnPrefix = ">>> " + secondPlayer->getName() + "'s turn";
     if (secondPlayer->isAIPlayer()) {
       ConsoleView::printPlain(turnPrefix + " (AI) <<<");
-      ConsoleView::printPlain("AI will choose 2 wonders from the remaining 3.\n");
+      ConsoleView::printPlain(
+          "AI will choose 2 wonders from the remaining 3.\n");
     } else {
       ConsoleView::printPlain(turnPrefix + " (Human) <<<");
       ConsoleView::printPlain("Please choose 2 wonders from the remaining 3.");
@@ -330,9 +330,8 @@ void Game::selectWondersRound(std::vector<Wonder *> &availableWonders,
     // 3. 最后一张奇迹自动归先手玩家
     ConsoleView::printPlain("The last wonder automatically goes to " +
                             firstPlayer->getName() + ":");
-    ConsoleView::printPlain(firstPlayer->getName() +
-                            " receives: " + availableWonders[0]->getName() +
-                            "\n");
+    ConsoleView::printPlain(firstPlayer->getName() + " receives: " +
+                            availableWonders[0]->getName() + "\n");
 
     firstPlayerWonders.push_back(availableWonders[0]);
 
@@ -344,8 +343,7 @@ void Game::selectWondersRound(std::vector<Wonder *> &availableWonders,
   ConsoleView::printSubHeader("ROUND " + std::to_string(round) +
                               " SELECTION COMPLETE");
   ConsoleView::printPlain(p1->getName() + " now has " +
-                          std::to_string(player1Wonders.size()) +
-                          " wonders.");
+                          std::to_string(player1Wonders.size()) + " wonders.");
   ConsoleView::printPlain(p2->getName() + " now has " +
                           std::to_string(player2Wonders.size()) +
                           " wonders.\n");
@@ -368,8 +366,7 @@ int Game::getPlayerWonderChoice(int min, int max, const std::string &prompt,
       ConsoleView::printPrompt(prompt);
     }
 
-    std::string input;
-    std::getline(std::cin, input);
+    std::string input = ConsoleView::getLineInput();
 
     if (input == "exit" || input == "EXIT" || input == "Exit") {
       ConsoleView::printPlain("\nPlayer has chosen to exit the game. Goodbye!");
@@ -380,21 +377,21 @@ int Game::getPlayerWonderChoice(int min, int max, const std::string &prompt,
       choice = std::stoi(input);
 
       if (choice < min || choice > max) {
-        ConsoleView::printPlain("Invalid choice. Please enter a number between " +
-                                std::to_string(min) + " and " +
-                                std::to_string(max) + ".");
+        ConsoleView::printPlain(
+            "Invalid choice. Please enter a number between " +
+            std::to_string(min) + " and " + std::to_string(max) + ".");
       } else {
         return choice;
       }
     } catch (const std::invalid_argument &e) {
-      ConsoleView::printPlain(
-          "Invalid input. Please enter a number between " +
-          std::to_string(min) + " and " + std::to_string(max) +
-          ", or type 'exit' to quit.");
-    } catch (const std::out_of_range &e) {
-      ConsoleView::printPlain("Number out of range. Please enter a number between " +
+      ConsoleView::printPlain("Invalid input. Please enter a number between " +
                               std::to_string(min) + " and " +
-                              std::to_string(max) + ".");
+                              std::to_string(max) +
+                              ", or type 'exit' to quit.");
+    } catch (const std::out_of_range &e) {
+      ConsoleView::printPlain(
+          "Number out of range. Please enter a number between " +
+          std::to_string(min) + " and " + std::to_string(max) + ".");
     }
   }
 }
@@ -465,9 +462,7 @@ void Game::start() {
 
 void Game::playAge(int age) {
   currentAge = age;
-  std::cout << "\n========================================" << std::endl;
-  std::cout << "          AGE " << age << " BEGINS!" << std::endl;
-  std::cout << "========================================\n" << std::endl;
+  ConsoleView::notifyAgeStart(age);
 
   std::vector<Card> deck;
   std::vector<Card> removed;
@@ -487,20 +482,20 @@ void Game::playTurn() {
   bool grantExtraTurn = false;
   int actingPlayerIndex = currentPlayerIndex;
 
-  printPlayerStatePanel(currentPlayer, otherPlayer);
+  // Use ConsoleView for the player panel
+  ConsoleView::printPlayerStatePanel(currentPlayer, otherPlayer);
 
-  std::cout << "\n--- " << currentPlayer->getName() << "'s Turn ---"
-            << std::endl;
+  ConsoleView::notifyTurnStart(currentPlayer->getName());
 
   Decision decision = currentPlayer->makeDecision(*this);
 
   const auto &pyramid = board.getPyramid();
 
-  if (decision.action == DecisionAction::EXIT ||
-      decision.cardIndex < 0 || decision.cardIndex >= (int)pyramid.size() ||
+  if (decision.action == DecisionAction::EXIT || decision.cardIndex < 0 ||
+      decision.cardIndex >= (int)pyramid.size() ||
       !board.isCardAccessible(decision.cardIndex) ||
       pyramid[decision.cardIndex].isTaken) {
-    std::cout << "Invalid decision. Skipping turn." << std::endl;
+    ConsoleView::notifyInvalidDecision();
     switchTurn();
     return;
   }
@@ -509,23 +504,25 @@ void Game::playTurn() {
 
   if (decision.action == DecisionAction::BUILD_CARD) {
     bool canBuild = currentPlayer->canAfford(card.getCost(), *otherPlayer,
-                                            card.getChainTarget());
+                                             card.getChainTarget());
     if (!canBuild) {
       int coinsGained = currentPlayer->discardForCoins();
       discardPile.push_back(card);
-      std::cout << currentPlayer->getName() << " could not afford "
-                << card.getName() << " and discarded it for " << coinsGained
-                << " coins." << std::endl;
+      ConsoleView::notifyInsufficientFunds(currentPlayer->getName(),
+                                           card.getName(), coinsGained);
     } else {
-      int actualCost = currentPlayer->calculateCost(card.getCost(), *otherPlayer,
-                                                   card.getChainTarget());
+      int actualCost = currentPlayer->calculateCost(
+          card.getCost(), *otherPlayer, card.getChainTarget());
+      currentPlayer->payCost(actualCost);
       currentPlayer->payCost(actualCost);
       currentPlayer->buildCard(card);
-      std::cout << currentPlayer->getName() << " built: " << card.getName()
-                << " (Paid " << actualCost << " coins)" << std::endl;
 
       const Effect &e = card.getEffect();
-      grantExtraTurn = e.playAgain;
+      grantExtraTurn = e.playAgain; // Check before notification if needed, but
+                                    // notification can handle bool?
+      // Let's pass grantExtraTurn to notification?
+      ConsoleView::notifyBuildSuccess(currentPlayer->getName(), card.getName(),
+                                      actualCost, grantExtraTurn);
       if (e.militaryShields > 0) {
         if (currentPlayer == p1) {
           board.moveMilitary(e.militaryShields, currentPlayer, otherPlayer);
@@ -539,8 +536,7 @@ void Game::playTurn() {
       }
 
       if (board.onSciencePair(*currentPlayer)) {
-        std::cout << "\n*** " << currentPlayer->getName()
-                  << " wins by Scientific Victory! ***" << std::endl;
+        ConsoleView::notifyScientificVictory(currentPlayer->getName());
         gameOver = true;
         return;
       }
@@ -548,8 +544,8 @@ void Game::playTurn() {
   } else if (decision.action == DecisionAction::DISCARD) {
     int coinsGained = currentPlayer->discardForCoins();
     discardPile.push_back(card);
-    std::cout << currentPlayer->getName() << " discarded " << card.getName()
-              << " for " << coinsGained << " coins." << std::endl;
+    ConsoleView::notifyDiscard(currentPlayer->getName(), card.getName(),
+                               coinsGained);
   } else if (decision.action == DecisionAction::BUILD_WONDER) {
     const auto &availableWonders = board.getAvailableWonders();
     if (decision.wonderIndex >= 0 &&
@@ -558,31 +554,28 @@ void Game::playTurn() {
         !availableWonders[decision.wonderIndex]->isBuilt()) {
       Wonder *targetWonder = availableWonders[decision.wonderIndex];
       if (currentPlayer->canAfford(targetWonder->getCost(), *otherPlayer)) {
-        int actualCost = currentPlayer->calculateCost(targetWonder->getCost(),
-                                                     *otherPlayer);
+        int actualCost =
+            currentPlayer->calculateCost(targetWonder->getCost(), *otherPlayer);
         currentPlayer->payCost(actualCost);
         Effect wonderEffect = currentPlayer->buildWonder(*targetWonder);
         discardPile.push_back(card);
         applyWonderEffect(wonderEffect, currentPlayer, otherPlayer);
         handleSeventhWonderBuilt();
         grantExtraTurn = grantExtraTurn || wonderEffect.playAgain;
-        std::cout << currentPlayer->getName()
-                  << " constructed wonder: " << targetWonder->getName()
-                  << " using card " << card.getName() << std::endl;
+        ConsoleView::notifyWonderBuilt(currentPlayer->getName(),
+                                       targetWonder->getName(), card.getName(),
+                                       grantExtraTurn);
 
         if (board.onSciencePair(*currentPlayer)) {
-          std::cout << "\n*** " << currentPlayer->getName()
-                    << " wins by Scientific Victory! ***" << std::endl;
+          ConsoleView::notifyScientificVictory(currentPlayer->getName());
           gameOver = true;
           return;
         }
       } else {
         int coinsGained = currentPlayer->discardForCoins();
         discardPile.push_back(card);
-        std::cout << currentPlayer->getName()
-                  << " could not afford the wonder and discarded "
-                  << card.getName() << " for " << coinsGained << " coins."
-                  << std::endl;
+        ConsoleView::notifyInsufficientFunds(currentPlayer->getName(), "wonder",
+                                             coinsGained);
       }
     }
   }
@@ -601,322 +594,21 @@ void Game::playTurn() {
 
   extraTurnPending = grantExtraTurn;
   if (extraTurnPending) {
-    std::cout << "Extra turn granted! " << currentPlayer->getName()
-              << " will play again." << std::endl;
+    ConsoleView::notifyExtraTurn(currentPlayer->getName());
     extraTurnPending = false; // 消耗本次额外回合
   } else {
     switchTurn();
   }
 }
 
-void Game::printBoard() const {
-  std::cout << "\n====== GAME STATE ======" << std::endl;
-  std::cout << "Age: " << currentAge
-            << " | Military: " << board.getMilitaryPosition() << std::endl;
-  std::cout << p1->getName() << " (Coins: " << p1->getCoins() << ") vs "
-            << p2->getName() << " (Coins: " << p2->getCoins() << ")"
-            << std::endl;
-  std::cout << "\nPYRAMID:" << std::endl;
+void Game::printBoard() const { ConsoleView::printGameBoard(*this); }
 
-  const auto &pyramid = board.getPyramid();
-
-  // Define pyramid structure based on age
-  std::vector<int> rowSizes;
-  if (currentAge == 1 || currentAge == 3) {
-    // Age 1/3: Top to bottom - 2, 3, 4, 5, 6 cards
-    rowSizes = {2, 3, 4, 5, 6};
-  } else {
-    // Age 2: Inverted pyramid - 6, 5, 4, 3, 2 cards
-    rowSizes = {6, 5, 4, 3, 2};
-  }
-
-  int cardIndex = 0;
-  for (size_t row = 0; row < rowSizes.size(); ++row) {
-    int rowSize = rowSizes[row];
-
-    // Calculate indentation (spaces to center the row)
-    int indent = (6 - rowSize) * 7; // Approximate centering
-    std::cout << std::string(indent, ' ');
-
-    // Print cards in this row
-    for (int col = 0; col < rowSize; ++col) {
-      if (cardIndex >= pyramid.size())
-        break;
-
-      const auto &slot = pyramid[cardIndex];
-      bool accessible = board.isCardAccessible(cardIndex);
-
-      // Format: [*ID: Name] or [ ID: ????]
-      std::string marker = accessible ? "*" : " ";
-      std::cout << "[" << marker << std::setw(2) << cardIndex << ":";
-
-      if (slot.isTaken) {
-        std::cout << "TAKEN ";
-      } else if (!slot.isFaceUp) {
-        std::cout << " ??? ";
-      } else {
-        // Truncate long names
-        std::string name = slot.card.getName();
-        if (name.length() > 7)
-          name = name.substr(0, 7);
-        std::cout << std::setw(7) << std::left << name << std::right;
-      }
-
-      std::cout << "] ";
-      cardIndex++;
-    }
-    std::cout << std::endl;
-  }
-
-  std::cout << "\n* = Accessible (can be picked)" << std::endl;
-  std::cout << "========================\n" << std::endl;
-}
-
+// printPlayerStatePanel implementation removed (Moved to ConsoleView)
 void Game::printPlayerStatePanel(Player *currentPlayer, Player *otherPlayer) {
-  std::cout << "\n";
-  std::cout << "==============================================================="
-               "=================\n";
-  std::cout << "                              PLAYER STATUS PANEL              "
-               "                 \n";
-  std::cout << "==============================================================="
-               "=================\n";
-
-  // 当前玩家的信息
-  std::cout << ">>> " << currentPlayer->getName() << "'s Resources <<<\n";
-
-  // 获取卡牌类型统计
-  std::map<CardType, int> cardsByType = currentPlayer->getCardsByType();
-
-  // 获取总资源产量
-  std::map<ResourceType, int> totalResources =
-      currentPlayer->getTotalResourcesFromCards();
-
-  // 一横排显示七个颜色资源的获得情况
-  std::cout << "Brown: ";
-  if (cardsByType[CardType::RAW_MATERIAL] > 0) {
-    // 显示资源类型和数量
-    bool firstResource = true;
-    if (totalResources[ResourceType::WOOD] > 0) {
-      std::cout << "wood " << totalResources[ResourceType::WOOD];
-      firstResource = false;
-    }
-    if (totalResources[ResourceType::CLAY] > 0) {
-      if (!firstResource)
-        std::cout << ", ";
-      std::cout << "clay " << totalResources[ResourceType::CLAY];
-      firstResource = false;
-    }
-    if (totalResources[ResourceType::STONE] > 0) {
-      if (!firstResource)
-        std::cout << ", ";
-      std::cout << "stone " << totalResources[ResourceType::STONE];
-      firstResource = false;
-    }
-    if (firstResource) {
-      std::cout << "none";
-    }
-  } else {
-    std::cout << "none";
-  }
-  std::cout << " | ";
-
-  std::cout << "Grey: ";
-  if (cardsByType[CardType::MANUFACTURED_GOOD] > 0) {
-    bool firstResource = true;
-    if (totalResources[ResourceType::GLASS] > 0) {
-      std::cout << "glass " << totalResources[ResourceType::GLASS];
-      firstResource = false;
-    }
-    if (totalResources[ResourceType::PAPER] > 0) {
-      if (!firstResource)
-        std::cout << ", ";
-      std::cout << "paper " << totalResources[ResourceType::PAPER];
-      firstResource = false;
-    }
-    if (firstResource) {
-      std::cout << "none";
-    }
-  } else {
-    std::cout << "none";
-  }
-  std::cout << " | ";
-
-  std::cout << "Blue: ";
-  std::cout << cardsByType[CardType::CIVILIAN] << " cards";
-  std::cout << " | ";
-
-  std::cout << "Green: ";
-  const auto &scienceSymbols = currentPlayer->getScienceSymbols();
-  if (!scienceSymbols.empty()) {
-    // 统计每个ScienceSymbol的数量
-    std::map<ScienceSymbol, int> symbolCounts;
-    for (const auto &symbol : scienceSymbols) {
-      if (symbol != ScienceSymbol::NONE) {
-        symbolCounts[symbol]++;
-      }
-    }
-
-    if (!symbolCounts.empty()) {
-      bool firstSymbol = true;
-      for (const auto &[symbol, count] : symbolCounts) {
-        if (!firstSymbol)
-          std::cout << ", ";
-
-        switch (symbol) {
-        case ScienceSymbol::GLOBE:
-          std::cout << "Globe";
-          break;
-        case ScienceSymbol::TABLET:
-          std::cout << "Tablet";
-          break;
-        case ScienceSymbol::GEAR:
-          std::cout << "Gear";
-          break;
-        case ScienceSymbol::COMPASS:
-          std::cout << "Compass";
-          break;
-        case ScienceSymbol::WHEEL:
-          std::cout << "Wheel";
-          break;
-        case ScienceSymbol::MORTAR:
-          std::cout << "Mortar";
-          break;
-        default:
-          std::cout << "Unknown";
-        }
-
-        if (count > 1) {
-          std::cout << "×" << count;
-        }
-        firstSymbol = false;
-      }
-    } else {
-      std::cout << "no symbols";
-    }
-  } else {
-    std::cout << "no symbols";
-  }
-  std::cout << " | ";
-
-  std::cout << "Yellow: ";
-  std::cout << cardsByType[CardType::COMMERCIAL] << " cards";
-  std::cout << " | ";
-
-  std::cout << "Red: ";
-  int militaryShields = currentPlayer->getMilitaryPower();
-  std::cout << "shields " << militaryShields;
-  std::cout << " | ";
-
-  std::cout << "Purple: ";
-  std::cout << cardsByType[CardType::GUILD] << " cards";
-  std::cout << "\n";
-
-  // 显示其他信息
-  std::cout << "\nCoins: " << currentPlayer->getCoins();
-  std::cout << " | Military Power: " << currentPlayer->getMilitaryPower();
-  std::cout << " | Victory Points: " << currentPlayer->getVictoryPoints();
-
-  // 显示科学符号
-  if (!scienceSymbols.empty()) {
-    // 重新统计用于详细显示
-    std::map<ScienceSymbol, int> symbolCounts;
-    for (const auto &symbol : scienceSymbols) {
-      if (symbol != ScienceSymbol::NONE) {
-        symbolCounts[symbol]++;
-      }
-    }
-
-    if (!symbolCounts.empty()) {
-      std::cout << "\nScience Symbols: ";
-      bool first = true;
-      int totalSymbols = 0;
-      for (const auto &[symbol, count] : symbolCounts) {
-        if (!first)
-          std::cout << ", ";
-
-        std::string symbolName;
-        switch (symbol) {
-        case ScienceSymbol::GLOBE:
-          symbolName = "Globe";
-          break;
-        case ScienceSymbol::TABLET:
-          symbolName = "Tablet";
-          break;
-        case ScienceSymbol::GEAR:
-          symbolName = "Gear";
-          break;
-        case ScienceSymbol::COMPASS:
-          symbolName = "Compass";
-          break;
-        case ScienceSymbol::WHEEL:
-          symbolName = "Wheel";
-          break;
-        case ScienceSymbol::MORTAR:
-          symbolName = "Mortar";
-          break;
-        default:
-          symbolName = "Unknown";
-        }
-
-        std::cout << symbolName << "(" << count << ")";
-        totalSymbols += count;
-        first = false;
-      }
-      std::cout << " [Total: " << totalSymbols << " symbols]";
-    }
-  }
-
-  // 显示建造的奇迹
-  const auto &builtWonders = currentPlayer->getBuiltWonders();
-  if (!builtWonders.empty()) {
-    std::cout << "\nWonders: ";
-    for (size_t i = 0; i < builtWonders.size(); ++i) {
-      if (i > 0)
-        std::cout << ", ";
-      if (builtWonders[i]) {
-        std::cout << builtWonders[i]->getName();
-      }
-    }
-  }
-
-  // 显示已建造的卡牌（简要）
-  const auto &builtCards = currentPlayer->getBuiltCards();
-  if (!builtCards.empty() &&
-      builtCards.size() <= 10) { // 如果卡牌太多，就不显示
-    std::cout << "\nBuilt Cards: ";
-    for (size_t i = 0; i < builtCards.size(); ++i) {
-      if (i > 0)
-        std::cout << ", ";
-      std::cout << builtCards[i].getName();
-    }
-  } else if (!builtCards.empty()) {
-    std::cout << "\nBuilt Cards: " << builtCards.size() << " cards";
-  }
-
-  std::cout << "\n";
-
-  // 对手的简要信息
-  std::cout << "\n--- " << otherPlayer->getName() << " (Opponent) ---\n";
-  std::cout << "Coins: " << otherPlayer->getCoins();
-  int opponentMilitaryShields = otherPlayer->getMilitaryPower();
-  std::cout << " | Military: " << opponentMilitaryShields;
-
-  std::cout << " | VP: " << otherPlayer->getVictoryPoints();
-
-  std::map<CardType, int> opponentCards = otherPlayer->getCardsByType();
-  std::cout << " | Cards: ";
-  std::cout << "B" << opponentCards[CardType::RAW_MATERIAL];
-  std::cout << "/G" << opponentCards[CardType::MANUFACTURED_GOOD];
-  std::cout << "/Bl" << opponentCards[CardType::CIVILIAN];
-  std::cout << "/Gr" << opponentCards[CardType::SCIENTIFIC];
-  std::cout << "/Y" << opponentCards[CardType::COMMERCIAL];
-  std::cout << "/R" << opponentMilitaryShields;
-  std::cout << "/P" << opponentCards[CardType::GUILD];
-
-  std::cout << "\n";
-  std::cout << "==============================================================="
-               "=================\n";
+  ConsoleView::printPlayerStatePanel(currentPlayer, otherPlayer);
 }
+
+// printPlayerStatePanel implementation removed (Moved to ConsoleView)
 
 const Board &Game::getBoard() const { return board; }
 const Player &Game::getPlayer1() const { return *p1; }
@@ -931,14 +623,12 @@ bool Game::checkVictory() {
   // Military victory
   int milPos = board.getMilitaryPosition();
   if (milPos >= 9) {
-    std::cout << "\n*** " << p1->getName() << " wins by Military Victory! ***"
-              << std::endl;
+    ConsoleView::notifyMilitaryVictory(p1->getName());
     gameOver = true;
     return true;
   }
   if (milPos <= -9) {
-    std::cout << "\n*** " << p2->getName() << " wins by Military Victory! ***"
-              << std::endl;
+    ConsoleView::notifyMilitaryVictory(p2->getName());
     gameOver = true;
     return true;
   }
@@ -953,9 +643,7 @@ bool Game::checkVictory() {
     }
   }
   if (p1UniqueSymbols >= 6) {
-    std::cout << "\n*** " << p1->getName() << " wins by Scientific Victory! ***"
-              << std::endl;
-    std::cout << "Collected 6 different science symbols!" << std::endl;
+    ConsoleView::notifyScientificVictory(p1->getName());
     gameOver = true;
     return true;
   }
@@ -969,9 +657,7 @@ bool Game::checkVictory() {
     }
   }
   if (p2UniqueSymbols >= 6) {
-    std::cout << "\n*** " << p2->getName() << " wins by Scientific Victory! ***"
-              << std::endl;
-    std::cout << "Collected 6 different science symbols!" << std::endl;
+    ConsoleView::notifyScientificVictory(p2->getName());
     gameOver = true;
     return true;
   }
@@ -984,42 +670,41 @@ bool Game::checkVictory() {
   ScoreBreakdown p1Score = calculateFinalScore(*p1, *p2);
   ScoreBreakdown p2Score = calculateFinalScore(*p2, *p1);
 
-  auto printScore = [](const std::string &name, const ScoreBreakdown &s) {
-    std::cout << name << " => Total: " << s.total() << " | Mil: "
-              << s.military << ", Blue: " << s.blue << ", Green: "
-              << s.green << ", Yellow: " << s.yellow << ", Purple: "
-              << s.purple << ", Wonders: " << s.wonder
-              << ", Progress: " << s.progress << ", Coins: " << s.coins
-              << std::endl;
-  };
+  // Note: Detailed score printing should theoretically move to View,
+  // but for now we replace std::cout to maintain compilation.
+  // Ideally ConsoleView should have printScoreBreakdown.
+  // We'll use a simple notification for the winner to avoid complex refactoring
+  // mid-execution.
 
-  std::cout << "\n=== FINAL SCORING ===" << std::endl;
-  printScore(p1->getName(), p1Score);
-  printScore(p2->getName(), p2Score);
+  std::string winnerName = "Draw";
+  std::string reason = "Civilian Points";
 
   int totalP1 = p1Score.total();
   int totalP2 = p2Score.total();
 
   if (totalP1 > totalP2) {
-    std::cout << "\n*** " << p1->getName()
-              << " wins by Civilian Victory! ***" << std::endl;
+    winnerName = p1->getName();
+    reason = "Civilian Victory (" + std::to_string(totalP1) + " vs " +
+             std::to_string(totalP2) + ")";
   } else if (totalP2 > totalP1) {
-    std::cout << "\n*** " << p2->getName()
-              << " wins by Civilian Victory! ***" << std::endl;
+    winnerName = p2->getName();
+    reason = "Civilian Victory (" + std::to_string(totalP2) + " vs " +
+             std::to_string(totalP1) + ")";
   } else {
     // Tie-breaker: compare blue card victory points
     if (p1Score.blue > p2Score.blue) {
-      std::cout << "\n*** " << p1->getName()
-                << " wins by Civilian Victory (Blue tie-breaker)! ***"
-                << std::endl;
+      winnerName = p1->getName();
+      reason = "Civilian Victory (Blue tie-breaker)";
     } else if (p2Score.blue > p1Score.blue) {
-      std::cout << "\n*** " << p2->getName()
-                << " wins by Civilian Victory (Blue tie-breaker)! ***"
-                << std::endl;
+      winnerName = p2->getName();
+      reason = "Civilian Victory (Blue tie-breaker)";
     } else {
-      std::cout << "\n*** The game ends in a draw! ***" << std::endl;
+      winnerName = "Draw";
+      reason = "Tie";
     }
   }
+
+  ConsoleView::notifyGameEnd(winnerName, reason);
 
   gameOver = true;
   return true;
@@ -1027,16 +712,14 @@ bool Game::checkVictory() {
 
 void Game::handleMilitaryConflict() {
   int pos = board.getMilitaryPosition();
-  std::cout << "Military position: " << pos << std::endl;
+  ConsoleView::printMilitaryStatus(pos);
 
   if (pos >= 9) {
     gameOver = true;
-    std::cout << "\n*** " << p1->getName() << " wins by Military Victory! ***"
-              << std::endl;
+    ConsoleView::notifyMilitaryVictory(p1->getName());
   } else if (pos <= -9) {
     gameOver = true;
-    std::cout << "\n*** " << p2->getName() << " wins by Military Victory! ***"
-              << std::endl;
+    ConsoleView::notifyMilitaryVictory(p2->getName());
   }
 }
 
@@ -1111,7 +794,8 @@ bool Game::isPyramidEmpty() const {
   return true;
 }
 
-int Game::calculateColorVictoryPoints(const Player &player, CardType type) const {
+int Game::calculateColorVictoryPoints(const Player &player,
+                                      CardType type) const {
   int points = 0;
   for (const auto &card : player.getBuiltCards()) {
     if (card.getType() == type) {

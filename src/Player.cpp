@@ -1,7 +1,8 @@
-#include "Game.h"
 #include "Player.h"
+#include "Game.h"
 #include <algorithm>
 #include <iostream>
+
 
 // === 构造函数 ===
 // [规则 P.6] PREPARATION - Step 5: "Each player takes 7 coins from the Bank."
@@ -10,20 +11,21 @@ Player::Player(std::string name, bool isAIPlayer)
     : name(name), coins(7), militaryPower(0), victoryPoints(0),
       isAI(isAIPlayer) {
   // 初始化交易折扣与科学符号计数
-  for (auto resource : {ResourceType::WOOD, ResourceType::STONE, ResourceType::CLAY,
-                        ResourceType::PAPER, ResourceType::GLASS}) {
+  for (auto resource :
+       {ResourceType::WOOD, ResourceType::STONE, ResourceType::CLAY,
+        ResourceType::PAPER, ResourceType::GLASS}) {
     tradeDiscounts[resource] = TradeDiscount{};
   }
-  for (auto symbol : {ScienceSymbol::GLOBE, ScienceSymbol::TABLET,
-                      ScienceSymbol::GEAR, ScienceSymbol::COMPASS,
-                      ScienceSymbol::WHEEL, ScienceSymbol::MORTAR}) {
+  for (auto symbol :
+       {ScienceSymbol::GLOBE, ScienceSymbol::TABLET, ScienceSymbol::GEAR,
+        ScienceSymbol::COMPASS, ScienceSymbol::WHEEL, ScienceSymbol::MORTAR}) {
     scienceSymbolCounter[symbol] = 0;
     sciencePairClaimed[symbol] = false;
   }
 }
 
 // === Getters (访问器) ===
-Decision Player::makeDecision(const Game &game) { return Decision{}; }
+Decision Player::makeDecision(const Game & /*game*/) { return Decision{}; }
 
 bool Player::isAIPlayer() const { return isAI; }
 std::string Player::getName() const { return name; }
@@ -72,7 +74,9 @@ void Player::removeCoins(int amount) {
   }
 }
 
-void Player::addResource(ResourceType type, int amount) { resources[type] += amount; }
+void Player::addResource(ResourceType type, int amount) {
+  resources[type] += amount;
+}
 
 void Player::removeResource(ResourceType type, int amount) {
   resources[type] -= amount;

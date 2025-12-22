@@ -436,3 +436,44 @@ void ConsoleView::printInfo(const std::string &message) {
 void ConsoleView::printSuccess(const std::string &message) {
     std::cout << "\nSUCCESS: " << message << std::endl;
 }
+
+// === Wonder selection helpers ===
+void ConsoleView::printSectionHeader(const std::string &title) {
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "        " << title << std::endl;
+    std::cout << "========================================\n" << std::endl;
+}
+
+void ConsoleView::printSubHeader(const std::string &title) {
+    std::cout << "\n=== " << title << " ===" << std::endl;
+}
+
+void ConsoleView::printPlain(const std::string &message) {
+    std::cout << message << std::endl;
+}
+
+void ConsoleView::printPrompt(const std::string &prompt) {
+    std::cout << prompt;
+}
+
+void ConsoleView::printNumberedWonderList(const std::vector<Wonder *> &wonders,
+                                          const std::string &title) {
+    if (!title.empty()) {
+        std::cout << title << std::endl;
+    }
+
+    for (size_t i = 0; i < wonders.size(); ++i) {
+        std::cout << i + 1 << ". " << wonders[i]->getName() << std::endl;
+    }
+    std::cout << std::endl;
+}
+
+void ConsoleView::printPlayerWonderCollection(const Player &player,
+                                              const std::vector<Wonder *> &wonders) {
+    std::cout << "========================================" << std::endl;
+    std::cout << player.getName() << "'s Wonders:" << std::endl;
+    for (size_t i = 0; i < wonders.size(); ++i) {
+        std::cout << "  " << i + 1 << ". " << wonders[i]->getName() << std::endl;
+    }
+    std::cout << "========================================\n" << std::endl;
+}

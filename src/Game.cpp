@@ -1,6 +1,7 @@
 #include "Game.h"
 #include "AIPlayer.h"
 #include "ConsoleView.h"
+#include "HumanPlayer.h"
 #include <algorithm>
 #include <chrono>
 #include <iomanip>
@@ -14,12 +15,17 @@ Game::Game()
       currentPlayerIndex(0), lastActionPlayerIndex(0), currentAge(1),
       gameOver(false) {}
 
+Game::~Game() {
+  delete p1;
+  delete p2;
+}
+
 void Game::init(std::string p1Name, bool p1IsAI, std::string p2Name,
                 bool p2IsAI) {
   p1 = p1IsAI ? static_cast<Player *>(new AIPlayer(p1Name))
-              : new Player(p1Name, false);
+              : static_cast<Player *>(new HumanPlayer(p1Name));
   p2 = p2IsAI ? static_cast<Player *>(new AIPlayer(p2Name))
-              : new Player(p2Name, false);
+              : static_cast<Player *>(new HumanPlayer(p2Name));
   board = Board();
   discardPile.clear();
   bankCoins = 0; // 抽象银行：默认不封顶
@@ -486,194 +492,14 @@ void Game::playTurn() {
   std::cout << "\n--- " << currentPlayer->getName() << "'s Turn ---"
             << std::endl;
 
-  Decision decision;
+  Decision decision = currentPlayer->makeDecision(*this);
 
-  std::vector<int> accessibleIndices;
   const auto &pyramid = board.getPyramid();
-  for (size_t i = 0; i < pyramid.size(); ++i) {
-    if (board.isCardAccessible(i) && !pyramid[i].isTaken) {
-      accessibleIndices.push_back(static_cast<int>(i));
-    }
-  }
-
-  if (currentPlayer->isAIPlayer()) {
-    decision = currentPlayer->makeDecision(*this);
-  } else {
-    // Human input - select card first
-    bool validCardSelected = false;
-    while (!validCardSelected) {
-      std::cout << "Enter card number to take (or type 'exit' to quit): ";
-
-      std::string input;
-      std::getline(std::cin, input);
-
-      if (input == "exit" || input == "EXIT" || input == "Exit") {
-        std::cout << "\nPlayer has chosen to exit the game. Goodbye!"
-                  << std::endl;
-        exit(0);
-      }
-
-      try {
-        int selection = std::stoi(input);
-        if (!board.isCardAccessible(selection) || selection < 0 ||
-            selection >= (int)pyramid.size() || pyramid[selection].isTaken) {
-          std::cout << "Invalid card! Choose an accessible card." << std::endl;
-        } else {
-          decision.cardIndex = selection;
-          validCardSelected = true;
-        }
-      } catch (const std::invalid_argument &) {
-        std::cout << "Invalid input. Please enter a card number, or type 'exit' "
-                     "to quit."
-                  << std::endl;
-      } catch (const std::out_of_range &) {
-        std::cout << "Number out of range. Please enter a valid card number."
-                  << std::endl;
-      }
-    }
-
-    const Card &previewCard = pyramid[decision.cardIndex].card;
-    const Cost &cost = previewCard.getCost();
-
-    std::cout << "\n========================================" << std::endl;
-    std::cout << "You selected: " << previewCard.getName() << " (Cost: "
-              << cost.coins;
-    if (!cost.resources.empty()) {
-      std::cout << " + resources";
-    }
-    std::cout << ")" << std::endl;
-    std::cout << "========================================" << std::endl;
-
-    bool canBuildCard =
-        currentPlayer->canAfford(cost, *otherPlayer, previewCard.getChainTarget());
-    bool canBuildWonder = false;
-    const auto &availableWonders = board.getAvailableWonders();
-    for (size_t i = 0; i < availableWonders.size(); ++i) {
-      if (availableWonders[i] != nullptr && !availableWonders[i]->isBuilt() &&
-          currentPlayer->canAfford(availableWonders[i]->getCost(),
-                                   *otherPlayer)) {
-        canBuildWonder = true;
-        break;
-      }
-    }
-
-    bool validChoice = false;
-    while (!validChoice) {
-      std::cout << "\nChoose action:" << std::endl;
-      std::cout << "1. Build Building";
-      if (!canBuildCard) {
-        std::cout << " [DISABLED - Cannot afford]";
-      }
-      std::cout << std::endl;
-
-      std::cout << "2. Discard for Coins (Gain "
-                << (2 + currentPlayer->getYellowCardCount()) << " coins)"
-                << std::endl;
-
-      std::cout << "3. Construct Wonder";
-      if (!canBuildWonder) {
-        std::cout << " [DISABLED - No affordable wonders available]";
-      }
-      std::cout << std::endl;
-      std::cout << "4. Exit Game" << std::endl;
-
-      std::string actionInput;
-      std::getline(std::cin, actionInput);
-
-      if (actionInput == "exit" || actionInput == "EXIT" ||
-          actionInput == "Exit") {
-        std::cout << "\nPlayer has chosen to exit the game. Goodbye!"
-                  << std::endl;
-        exit(0);
-      }
-
-      try {
-        int action = std::stoi(actionInput);
-        if (action == 1) {
-          if (canBuildCard) {
-            decision.action = DecisionAction::BUILD_CARD;
-            validChoice = true;
-          } else {
-            std::cout << "ERROR: You cannot afford to build this card!"
-                      << std::endl;
-          }
-        } else if (action == 2) {
-          decision.action = DecisionAction::DISCARD;
-          validChoice = true;
-        } else if (action == 3) {
-          if (!canBuildWonder) {
-            std::cout << "ERROR: No affordable wonders available!" << std::endl;
-            continue;
-          }
-
-          std::cout << "\nAvailable Wonders:" << std::endl;
-          for (size_t i = 0; i < availableWonders.size(); ++i) {
-            if (availableWonders[i] != nullptr &&
-                !availableWonders[i]->isBuilt()) {
-              const Cost &wonderCost = availableWonders[i]->getCost();
-              bool affordable = currentPlayer->canAfford(wonderCost, *otherPlayer);
-              std::cout << i << ". " << availableWonders[i]->getName()
-                        << " (Cost: " << wonderCost.coins << " coins";
-              if (!wonderCost.resources.empty()) {
-                std::cout << " + resources";
-              }
-              std::cout << ")";
-              if (!affordable) {
-                std::cout << " [Cannot afford]";
-              }
-              std::cout << std::endl;
-            }
-          }
-
-          std::cout << "Enter wonder number to build (or type 'exit' to quit): ";
-          std::string wonderInput;
-          std::getline(std::cin, wonderInput);
-
-          if (wonderInput == "exit" || wonderInput == "EXIT" ||
-              wonderInput == "Exit") {
-            std::cout << "\nPlayer has chosen to exit the game. Goodbye!"
-                      << std::endl;
-            exit(0);
-          }
-
-          try {
-            int wonderChoice = std::stoi(wonderInput);
-            if (wonderChoice >= 0 &&
-                wonderChoice < static_cast<int>(availableWonders.size()) &&
-                availableWonders[wonderChoice] != nullptr &&
-                !availableWonders[wonderChoice]->isBuilt() &&
-                currentPlayer->canAfford(
-                    availableWonders[wonderChoice]->getCost(), *otherPlayer)) {
-              decision.action = DecisionAction::BUILD_WONDER;
-              decision.wonderIndex = wonderChoice;
-              validChoice = true;
-            } else {
-              std::cout << "ERROR: Invalid wonder selection!" << std::endl;
-            }
-          } catch (const std::exception &) {
-            std::cout << "Invalid input. Please enter a wonder number." << std::endl;
-          }
-        } else if (action == 4) {
-          std::cout << "\nPlayer has chosen to exit the game. Goodbye!"
-                    << std::endl;
-          exit(0);
-        } else {
-          std::cout << "Invalid choice! Please enter 1, 2, 3, or 4."
-                    << std::endl;
-        }
-      } catch (const std::invalid_argument &) {
-        std::cout << "Invalid input. Please enter a number between 1 and 4, or "
-                     "type 'exit' to quit."
-                  << std::endl;
-      } catch (const std::out_of_range &) {
-        std::cout << "Number out of range. Please enter a valid choice."
-                  << std::endl;
-      }
-    }
-  }
 
   if (decision.action == DecisionAction::EXIT ||
-      decision.cardIndex < 0 || decision.cardIndex >= (int)pyramid.size()) {
+      decision.cardIndex < 0 || decision.cardIndex >= (int)pyramid.size() ||
+      !board.isCardAccessible(decision.cardIndex) ||
+      pyramid[decision.cardIndex].isTaken) {
     std::cout << "Invalid decision. Skipping turn." << std::endl;
     switchTurn();
     return;

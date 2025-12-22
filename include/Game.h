@@ -28,6 +28,7 @@ struct ScoreBreakdown {
 class Game {
 public:
   Game();
+  ~Game();
 
   void init(std::string p1Name, bool p1IsAI, std::string p2Name, bool p2IsAI);
   void start(); // Console game loop

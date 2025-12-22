@@ -10,6 +10,7 @@ class Game;
 class Board;
 class Player;
 class Card;
+class Wonder;
 
 class ConsoleView {
 public:
@@ -47,7 +48,17 @@ public:
   static void printError(const std::string &message);
   static void printInfo(const std::string &message);
   static void printSuccess(const std::string &message);
-  
+
+  // === Wonder selection helpers ===
+  static void printSectionHeader(const std::string &title);
+  static void printSubHeader(const std::string &title);
+  static void printPlain(const std::string &message);
+  static void printPrompt(const std::string &prompt);
+  static void printNumberedWonderList(const std::vector<class Wonder *> &wonders,
+                                      const std::string &title);
+  static void printPlayerWonderCollection(const Player &player,
+                                          const std::vector<class Wonder *> &wonders);
+
   // === 辅助显示函数 ===
   static void printPlayerStatePanel(const Player *currentPlayer, const Player *otherPlayer);
   

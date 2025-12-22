@@ -1,4 +1,7 @@
 #include "Game.h"
+#include "AIPlayer.h"
+#include "ConsoleView.h"
+#include "HumanPlayer.h"
 #include <algorithm>
 #include <chrono>
 #include <iomanip>
@@ -12,10 +15,17 @@ Game::Game()
       currentPlayerIndex(0), lastActionPlayerIndex(0), currentAge(1),
       gameOver(false) {}
 
+Game::~Game() {
+  delete p1;
+  delete p2;
+}
+
 void Game::init(std::string p1Name, bool p1IsAI, std::string p2Name,
                 bool p2IsAI) {
-  p1 = new Player(p1Name, p1IsAI);
-  p2 = new Player(p2Name, p2IsAI);
+  p1 = p1IsAI ? static_cast<Player *>(new AIPlayer(p1Name))
+              : static_cast<Player *>(new HumanPlayer(p1Name));
+  p2 = p2IsAI ? static_cast<Player *>(new AIPlayer(p2Name))
+              : static_cast<Player *>(new HumanPlayer(p2Name));
   board = Board();
   discardPile.clear();
   bankCoins = 0; // 抽象银行：默认不封顶
@@ -41,9 +51,7 @@ void Game::init(std::string p1Name, bool p1IsAI, std::string p2Name,
 }
 
 void Game::setupWonders() {
-  std::cout << "\n========================================" << std::endl;
-  std::cout << "        WONDER SELECTION PHASE" << std::endl;
-  std::cout << "========================================\n" << std::endl;
+  ConsoleView::printSectionHeader("WONDER SELECTION PHASE");
 
   // 获取所有12个奇迹
   allWonders = Deck::getWonders();
@@ -59,7 +67,7 @@ void Game::setupWonders() {
                std::default_random_engine(seed));
 
   // 第一次选择：从12个中随机选4个
-  std::cout << "=== ROUND 1: Selecting 4 wonders from 12 ===" << std::endl;
+  ConsoleView::printSubHeader("ROUND 1: Selecting 4 wonders from 12");
   std::vector<Wonder *> round1Wonders;
   for (int i = 0; i < 4; ++i) {
     round1Wonders.push_back(allWonderPtrs[i]);
@@ -72,10 +80,9 @@ void Game::setupWonders() {
   Player *firstPlayerRound1 = (currentPlayerIndex == 0) ? p1 : p2;
   Player *secondPlayerRound1 = (currentPlayerIndex == 0) ? p2 : p1;
 
-  std::cout << "\nRandomly deciding player order..." << std::endl;
-  std::cout << firstPlayerRound1->getName()
-            << " will choose first in Round 1!\n"
-            << std::endl;
+  ConsoleView::printPlain("\nRandomly deciding player order...");
+  ConsoleView::printPlain(firstPlayerRound1->getName() +
+                          " will choose first in Round 1!\n");
 
   // 第一轮奇迹选择
   selectWondersRound(round1Wonders, 1);
@@ -88,21 +95,20 @@ void Game::setupWonders() {
                std::default_random_engine(seed + 1));
 
   // 第二次选择：从剩下的8个中随机选4个
-  std::cout << "\n=== ROUND 2: Selecting 4 more wonders from remaining 8 ==="
-            << std::endl;
+  ConsoleView::printSubHeader(
+      "ROUND 2: Selecting 4 more wonders from remaining 8");
   std::vector<Wonder *> round2Wonders;
   for (int i = 0; i < 4; ++i) {
     round2Wonders.push_back(allWonderPtrs[i]);
   }
 
   // 第二轮交换玩家顺序：第一轮先手玩家变成后手，后手玩家变成先手
-  std::cout << "\nSwapping player order for Round 2..." << std::endl;
+  ConsoleView::printPlain("\nSwapping player order for Round 2...");
   currentPlayerIndex = 1 - currentPlayerIndex; // 交换0和1
 
   Player *firstPlayerRound2 = (currentPlayerIndex == 0) ? p1 : p2;
-  std::cout << firstPlayerRound2->getName()
-            << " will choose first in Round 2!\n"
-            << std::endl;
+  ConsoleView::printPlain(firstPlayerRound2->getName() +
+                          " will choose first in Round 2!\n");
 
   // 第二轮奇迹选择（现在玩家顺序已经交换）
   selectWondersRound(round2Wonders, 2);
@@ -118,31 +124,19 @@ void Game::setupWonders() {
   board.setAvailableWonders(boardWonders);
 
   // 显示最终结果
-  std::cout << "\n========================================" << std::endl;
-  std::cout << "        WONDER SELECTION COMPLETE" << std::endl;
-  std::cout << "========================================\n" << std::endl;
-
-  std::cout << p1->getName() << "'s wonders:" << std::endl;
-  for (int i = 0; i < player1Wonders.size(); ++i) {
-    std::cout << "  " << i + 1 << ". " << player1Wonders[i]->getName()
-              << std::endl;
-  }
-
-  std::cout << "\n" << p2->getName() << "'s wonders:" << std::endl;
-  for (int i = 0; i < player2Wonders.size(); ++i) {
-    std::cout << "  " << i + 1 << ". " << player2Wonders[i]->getName()
-              << std::endl;
-  }
+  ConsoleView::printSectionHeader("WONDER SELECTION COMPLETE");
+  ConsoleView::printPlayerWonderCollection(*p1, player1Wonders);
+  ConsoleView::printPlayerWonderCollection(*p2, player2Wonders);
 
   // 根据7 Wonders Duel规则，奇迹选择阶段第一轮的先手玩家在游戏开始时先手
   currentPlayerIndex = firstRoundFirstPlayer;
-  std::cout << "\nGame will start with "
-            << (currentPlayerIndex == 0 ? p1->getName() : p2->getName())
-            << " (first to choose in Round 1)!\n"
-            << std::endl;
+  ConsoleView::printPlain(
+      "\nGame will start with " +
+      (currentPlayerIndex == 0 ? p1->getName() : p2->getName()) +
+      " (first to choose in Round 1)!\n");
 
-  std::cout
-      << "Press Enter to continue to the game (or type 'exit' to quit)...";
+  ConsoleView::printPrompt(
+      "Press Enter to continue to the game (or type 'exit' to quit)...");
 
   std::string continueInput;
   std::getline(std::cin, continueInput);
@@ -150,23 +144,19 @@ void Game::setupWonders() {
   // 检查是否输入了exit
   if (continueInput == "exit" || continueInput == "EXIT" ||
       continueInput == "Exit") {
-    std::cout << "\nPlayer has chosen to exit the game. Goodbye!" << std::endl;
+    ConsoleView::printPlain("\nPlayer has chosen to exit the game. Goodbye!");
     exit(0);
   }
 }
 
 void Game::selectWondersRound(std::vector<Wonder *> &availableWonders,
                               int round) {
-  std::cout << "\n========================================" << std::endl;
-  std::cout << "        WONDER SELECTION - ROUND " << round << std::endl;
-  std::cout << "========================================\n" << std::endl;
+  ConsoleView::printSectionHeader("WONDER SELECTION - ROUND " +
+                                  std::to_string(round));
 
   // 显示所有可用的奇迹
-  std::cout << "Available wonders:\n" << std::endl;
-  for (int i = 0; i < availableWonders.size(); ++i) {
-    std::cout << i + 1 << ". " << availableWonders[i]->getName() << std::endl;
-  }
-  std::cout << std::endl;
+  ConsoleView::printNumberedWonderList(availableWonders,
+                                       "Available wonders:\n");
 
   // 确定当前玩家和对手
   Player *firstPlayer = (currentPlayerIndex == 0) ? p1 : p2;
@@ -181,154 +171,112 @@ void Game::selectWondersRound(std::vector<Wonder *> &availableWonders,
     // 情况：先手玩家是AI
 
     // 1. AI先选择一张奇迹
-    std::cout << ">>> " << firstPlayer->getName() << " (AI) chooses first <<<"
-              << std::endl;
+    ConsoleView::printPlain(">>> " + firstPlayer->getName() +
+                            " (AI) chooses first <<<");
     int aiChoice =
         getPlayerWonderChoice(1, availableWonders.size(), "", firstPlayer);
-    std::cout << firstPlayer->getName()
-              << " (AI) selected: " << availableWonders[aiChoice - 1]->getName()
-              << "\n"
-              << std::endl;
+    ConsoleView::printPlain(
+        firstPlayer->getName() + " (AI) selected: " +
+        availableWonders[aiChoice - 1]->getName() + "\n");
 
     firstPlayerWonders.push_back(availableWonders[aiChoice - 1]);
     availableWonders.erase(availableWonders.begin() + aiChoice - 1);
 
     // 显示AI的奇迹区
-    std::cout << "========================================" << std::endl;
-    std::cout << firstPlayer->getName() << "'s Wonders:" << std::endl;
-    for (size_t i = 0; i < firstPlayerWonders.size(); ++i) {
-      std::cout << "  " << i + 1 << ". " << firstPlayerWonders[i]->getName()
-                << std::endl;
-    }
-    std::cout << "========================================\n" << std::endl;
+    ConsoleView::printPlayerWonderCollection(*firstPlayer, firstPlayerWonders);
 
     // 2. 显示剩下的三张奇迹给人类玩家选择
-    std::cout << "Remaining wonders for " << secondPlayer->getName()
-              << " (Human):\n"
-              << std::endl;
-    for (int i = 0; i < availableWonders.size(); ++i) {
-      std::cout << i + 1 << ". " << availableWonders[i]->getName() << std::endl;
-    }
-    std::cout << std::endl;
+    ConsoleView::printNumberedWonderList(
+        availableWonders,
+        "Remaining wonders for " + secondPlayer->getName() + " (Human):\n");
 
-    std::cout << ">>> " << secondPlayer->getName() << "'s turn (Human) <<<"
-              << std::endl;
-    std::cout << "Please choose 2 wonders from the remaining 3." << std::endl;
+    ConsoleView::printPlain(">>> " + secondPlayer->getName() +
+                            "'s turn (Human) <<<");
+    ConsoleView::printPlain("Please choose 2 wonders from the remaining 3.");
 
     // 人类玩家选择第一张奇迹
     int humanChoice1 = getPlayerWonderChoice(
         1, availableWonders.size(),
         "Enter the number of your first wonder: ", secondPlayer);
-    std::cout << "\n"
-              << secondPlayer->getName()
-              << " selected: " << availableWonders[humanChoice1 - 1]->getName()
-              << "\n"
-              << std::endl;
+    ConsoleView::printPlain("\n" + secondPlayer->getName() +
+                            " selected: " +
+                            availableWonders[humanChoice1 - 1]->getName() +
+                            "\n");
 
     secondPlayerWonders.push_back(availableWonders[humanChoice1 - 1]);
     availableWonders.erase(availableWonders.begin() + humanChoice1 - 1);
 
     // 显示人类玩家的奇迹区
-    std::cout << "========================================" << std::endl;
-    std::cout << secondPlayer->getName() << "'s Wonders:" << std::endl;
-    for (size_t i = 0; i < secondPlayerWonders.size(); ++i) {
-      std::cout << "  " << i + 1 << ". " << secondPlayerWonders[i]->getName()
-                << std::endl;
-    }
-    std::cout << "========================================\n" << std::endl;
+    ConsoleView::printPlayerWonderCollection(*secondPlayer,
+                                             secondPlayerWonders);
 
     // 显示剩余的奇迹
-    std::cout << "Remaining wonders:\n" << std::endl;
-    for (int i = 0; i < availableWonders.size(); ++i) {
-      std::cout << i + 1 << ". " << availableWonders[i]->getName() << std::endl;
-    }
-    std::cout << std::endl;
+    ConsoleView::printNumberedWonderList(availableWonders,
+                                         "Remaining wonders:\n");
 
     // 人类玩家选择第二张奇迹
     int humanChoice2 = getPlayerWonderChoice(
         1, availableWonders.size(),
         "Enter the number of your second wonder: ", secondPlayer);
-    std::cout << "\n"
-              << secondPlayer->getName()
-              << " selected: " << availableWonders[humanChoice2 - 1]->getName()
-              << "\n"
-              << std::endl;
+    ConsoleView::printPlain("\n" + secondPlayer->getName() +
+                            " selected: " +
+                            availableWonders[humanChoice2 - 1]->getName() +
+                            "\n");
 
     secondPlayerWonders.push_back(availableWonders[humanChoice2 - 1]);
     availableWonders.erase(availableWonders.begin() + humanChoice2 - 1);
 
     // 显示人类玩家的最终奇迹区
-    std::cout << "========================================" << std::endl;
-    std::cout << secondPlayer->getName() << "'s Wonders:" << std::endl;
-    for (size_t i = 0; i < secondPlayerWonders.size(); ++i) {
-      std::cout << "  " << i + 1 << ". " << secondPlayerWonders[i]->getName()
-                << std::endl;
-    }
-    std::cout << "========================================\n" << std::endl;
+    ConsoleView::printPlayerWonderCollection(*secondPlayer,
+                                             secondPlayerWonders);
 
     // 3. 最后一张奇迹自动归AI
-    std::cout << "The last wonder automatically goes to "
-              << firstPlayer->getName() << " (AI):" << std::endl;
-    std::cout << firstPlayer->getName()
-              << " receives: " << availableWonders[0]->getName() << "\n"
-              << std::endl;
+    ConsoleView::printPlain("The last wonder automatically goes to " +
+                            firstPlayer->getName() + " (AI):");
+    ConsoleView::printPlain(firstPlayer->getName() +
+                            " receives: " + availableWonders[0]->getName() +
+                            "\n");
 
     firstPlayerWonders.push_back(availableWonders[0]);
 
     // 显示AI的最终奇迹区
-    std::cout << "========================================" << std::endl;
-    std::cout << firstPlayer->getName() << "'s Wonders:" << std::endl;
-    for (size_t i = 0; i < firstPlayerWonders.size(); ++i) {
-      std::cout << "  " << i + 1 << ". " << firstPlayerWonders[i]->getName()
-                << std::endl;
-    }
-    std::cout << "========================================\n" << std::endl;
+    ConsoleView::printPlayerWonderCollection(*firstPlayer, firstPlayerWonders);
 
   } else {
     // 情况：先手玩家是人类
 
     // 1. 人类玩家先选择一张奇迹
-    std::cout << ">>> " << firstPlayer->getName() << "'s turn (Human) <<<"
-              << std::endl;
-    std::cout << "Please enter the number (1-4) to select your wonder: ";
+    ConsoleView::printPlain(">>> " + firstPlayer->getName() +
+                            "'s turn (Human) <<<");
+    ConsoleView::printPrompt(
+        "Please enter the number (1-4) to select your wonder: ");
 
     int humanChoice = getPlayerWonderChoice(
         1, availableWonders.size(),
         "Enter the number of the wonder you want: ", firstPlayer);
 
-    std::cout << "\n"
-              << firstPlayer->getName()
-              << " selected: " << availableWonders[humanChoice - 1]->getName()
-              << "\n"
-              << std::endl;
+    ConsoleView::printPlain("\n" + firstPlayer->getName() +
+                            " selected: " +
+                            availableWonders[humanChoice - 1]->getName() +
+                            "\n");
 
     firstPlayerWonders.push_back(availableWonders[humanChoice - 1]);
     availableWonders.erase(availableWonders.begin() + humanChoice - 1);
 
     // 显示人类玩家的奇迹区
-    std::cout << "========================================" << std::endl;
-    std::cout << firstPlayer->getName() << "'s Wonders:" << std::endl;
-    for (size_t i = 0; i < firstPlayerWonders.size(); ++i) {
-      std::cout << "  " << i + 1 << ". " << firstPlayerWonders[i]->getName()
-                << std::endl;
-    }
-    std::cout << "========================================\n" << std::endl;
+    ConsoleView::printPlayerWonderCollection(*firstPlayer, firstPlayerWonders);
 
     // 2. 显示剩余的奇迹
-    std::cout << "Remaining wonders:\n" << std::endl;
-    for (int i = 0; i < availableWonders.size(); ++i) {
-      std::cout << i + 1 << ". " << availableWonders[i]->getName() << std::endl;
-    }
-    std::cout << std::endl;
+    ConsoleView::printNumberedWonderList(availableWonders,
+                                         "Remaining wonders:\n");
 
-    std::cout << ">>> " << secondPlayer->getName() << "'s turn";
+    std::string turnPrefix = ">>> " + secondPlayer->getName() + "'s turn";
     if (secondPlayer->isAIPlayer()) {
-      std::cout << " (AI) <<<" << std::endl;
-      std::cout << "AI will choose 2 wonders from the remaining 3.\n"
-                << std::endl;
+      ConsoleView::printPlain(turnPrefix + " (AI) <<<");
+      ConsoleView::printPlain("AI will choose 2 wonders from the remaining 3.\n");
     } else {
-      std::cout << " (Human) <<<" << std::endl;
-      std::cout << "Please choose 2 wonders from the remaining 3." << std::endl;
+      ConsoleView::printPlain(turnPrefix + " (Human) <<<");
+      ConsoleView::printPlain("Please choose 2 wonders from the remaining 3.");
     }
 
     // 后手玩家选择第一张奇迹
@@ -342,29 +290,20 @@ void Game::selectWondersRound(std::vector<Wonder *> &availableWonders,
           "Enter the number of your first wonder: ", secondPlayer);
     }
 
-    std::cout << secondPlayer->getName()
-              << " selected: " << availableWonders[secondChoice1 - 1]->getName()
-              << "\n"
-              << std::endl;
+    ConsoleView::printPlain(
+        secondPlayer->getName() +
+        " selected: " + availableWonders[secondChoice1 - 1]->getName() + "\n");
 
     secondPlayerWonders.push_back(availableWonders[secondChoice1 - 1]);
     availableWonders.erase(availableWonders.begin() + secondChoice1 - 1);
 
     // 显示后手玩家的奇迹区
-    std::cout << "========================================" << std::endl;
-    std::cout << secondPlayer->getName() << "'s Wonders:" << std::endl;
-    for (size_t i = 0; i < secondPlayerWonders.size(); ++i) {
-      std::cout << "  " << i + 1 << ". " << secondPlayerWonders[i]->getName()
-                << std::endl;
-    }
-    std::cout << "========================================\n" << std::endl;
+    ConsoleView::printPlayerWonderCollection(*secondPlayer,
+                                             secondPlayerWonders);
 
     // 显示剩余的奇迹
-    std::cout << "Remaining wonders:\n" << std::endl;
-    for (int i = 0; i < availableWonders.size(); ++i) {
-      std::cout << i + 1 << ". " << availableWonders[i]->getName() << std::endl;
-    }
-    std::cout << std::endl;
+    ConsoleView::printNumberedWonderList(availableWonders,
+                                         "Remaining wonders:\n");
 
     // 后手玩家选择第二张奇迹
     int secondChoice2;
@@ -377,50 +316,39 @@ void Game::selectWondersRound(std::vector<Wonder *> &availableWonders,
           "Enter the number of your second wonder: ", secondPlayer);
     }
 
-    std::cout << secondPlayer->getName()
-              << " selected: " << availableWonders[secondChoice2 - 1]->getName()
-              << "\n"
-              << std::endl;
+    ConsoleView::printPlain(
+        secondPlayer->getName() +
+        " selected: " + availableWonders[secondChoice2 - 1]->getName() + "\n");
 
     secondPlayerWonders.push_back(availableWonders[secondChoice2 - 1]);
     availableWonders.erase(availableWonders.begin() + secondChoice2 - 1);
 
     // 显示后手玩家的最终奇迹区
-    std::cout << "========================================" << std::endl;
-    std::cout << secondPlayer->getName() << "'s Wonders:" << std::endl;
-    for (size_t i = 0; i < secondPlayerWonders.size(); ++i) {
-      std::cout << "  " << i + 1 << ". " << secondPlayerWonders[i]->getName()
-                << std::endl;
-    }
-    std::cout << "========================================\n" << std::endl;
+    ConsoleView::printPlayerWonderCollection(*secondPlayer,
+                                             secondPlayerWonders);
 
     // 3. 最后一张奇迹自动归先手玩家
-    std::cout << "The last wonder automatically goes to "
-              << firstPlayer->getName() << ":" << std::endl;
-    std::cout << firstPlayer->getName()
-              << " receives: " << availableWonders[0]->getName() << "\n"
-              << std::endl;
+    ConsoleView::printPlain("The last wonder automatically goes to " +
+                            firstPlayer->getName() + ":");
+    ConsoleView::printPlain(firstPlayer->getName() +
+                            " receives: " + availableWonders[0]->getName() +
+                            "\n");
 
     firstPlayerWonders.push_back(availableWonders[0]);
 
     // 显示先手玩家的最终奇迹区
-    std::cout << "========================================" << std::endl;
-    std::cout << firstPlayer->getName() << "'s Wonders:" << std::endl;
-    for (size_t i = 0; i < firstPlayerWonders.size(); ++i) {
-      std::cout << "  " << i + 1 << ". " << firstPlayerWonders[i]->getName()
-                << std::endl;
-    }
-    std::cout << "========================================\n" << std::endl;
+    ConsoleView::printPlayerWonderCollection(*firstPlayer, firstPlayerWonders);
   }
 
   // 显示本轮选择后的结果总结
-  std::cout << "\n=== ROUND " << round
-            << " SELECTION COMPLETE ===" << std::endl;
-  std::cout << p1->getName() << " now has " << player1Wonders.size()
-            << " wonders." << std::endl;
-  std::cout << p2->getName() << " now has " << player2Wonders.size()
-            << " wonders.\n"
-            << std::endl;
+  ConsoleView::printSubHeader("ROUND " + std::to_string(round) +
+                              " SELECTION COMPLETE");
+  ConsoleView::printPlain(p1->getName() + " now has " +
+                          std::to_string(player1Wonders.size()) +
+                          " wonders.");
+  ConsoleView::printPlain(p2->getName() + " now has " +
+                          std::to_string(player2Wonders.size()) +
+                          " wonders.\n");
 }
 
 int Game::getPlayerWonderChoice(int min, int max, const std::string &prompt,
@@ -437,15 +365,14 @@ int Game::getPlayerWonderChoice(int min, int max, const std::string &prompt,
   // 人类玩家选择
   while (true) {
     if (!prompt.empty()) {
-      std::cout << prompt;
+      ConsoleView::printPrompt(prompt);
     }
 
     std::string input;
     std::getline(std::cin, input);
 
     if (input == "exit" || input == "EXIT" || input == "Exit") {
-      std::cout << "\nPlayer has chosen to exit the game. Goodbye!"
-                << std::endl;
+      ConsoleView::printPlain("\nPlayer has chosen to exit the game. Goodbye!");
       exit(0); // 退出程序
     }
 
@@ -453,17 +380,21 @@ int Game::getPlayerWonderChoice(int min, int max, const std::string &prompt,
       choice = std::stoi(input);
 
       if (choice < min || choice > max) {
-        std::cout << "Invalid choice. Please enter a number between " << min
-                  << " and " << max << "." << std::endl;
+        ConsoleView::printPlain("Invalid choice. Please enter a number between " +
+                                std::to_string(min) + " and " +
+                                std::to_string(max) + ".");
       } else {
         return choice;
       }
     } catch (const std::invalid_argument &e) {
-      std::cout << "Invalid input. Please enter a number between " << min
-                << " and " << max << ", or type 'exit' to quit." << std::endl;
+      ConsoleView::printPlain(
+          "Invalid input. Please enter a number between " +
+          std::to_string(min) + " and " + std::to_string(max) +
+          ", or type 'exit' to quit.");
     } catch (const std::out_of_range &e) {
-      std::cout << "Number out of range. Please enter a number between " << min
-                << " and " << max << "." << std::endl;
+      ConsoleView::printPlain("Number out of range. Please enter a number between " +
+                              std::to_string(min) + " and " +
+                              std::to_string(max) + ".");
     }
   }
 }
@@ -561,194 +492,14 @@ void Game::playTurn() {
   std::cout << "\n--- " << currentPlayer->getName() << "'s Turn ---"
             << std::endl;
 
-  Decision decision;
+  Decision decision = currentPlayer->makeDecision(*this);
 
-  std::vector<int> accessibleIndices;
   const auto &pyramid = board.getPyramid();
-  for (size_t i = 0; i < pyramid.size(); ++i) {
-    if (board.isCardAccessible(i) && !pyramid[i].isTaken) {
-      accessibleIndices.push_back(static_cast<int>(i));
-    }
-  }
-
-  if (currentPlayer->isAIPlayer()) {
-    decision = currentPlayer->makeDecision(*this);
-  } else {
-    // Human input - select card first
-    bool validCardSelected = false;
-    while (!validCardSelected) {
-      std::cout << "Enter card number to take (or type 'exit' to quit): ";
-
-      std::string input;
-      std::getline(std::cin, input);
-
-      if (input == "exit" || input == "EXIT" || input == "Exit") {
-        std::cout << "\nPlayer has chosen to exit the game. Goodbye!"
-                  << std::endl;
-        exit(0);
-      }
-
-      try {
-        int selection = std::stoi(input);
-        if (!board.isCardAccessible(selection) || selection < 0 ||
-            selection >= (int)pyramid.size() || pyramid[selection].isTaken) {
-          std::cout << "Invalid card! Choose an accessible card." << std::endl;
-        } else {
-          decision.cardIndex = selection;
-          validCardSelected = true;
-        }
-      } catch (const std::invalid_argument &) {
-        std::cout << "Invalid input. Please enter a card number, or type 'exit' "
-                     "to quit."
-                  << std::endl;
-      } catch (const std::out_of_range &) {
-        std::cout << "Number out of range. Please enter a valid card number."
-                  << std::endl;
-      }
-    }
-
-    const Card &previewCard = pyramid[decision.cardIndex].card;
-    const Cost &cost = previewCard.getCost();
-
-    std::cout << "\n========================================" << std::endl;
-    std::cout << "You selected: " << previewCard.getName() << " (Cost: "
-              << cost.coins;
-    if (!cost.resources.empty()) {
-      std::cout << " + resources";
-    }
-    std::cout << ")" << std::endl;
-    std::cout << "========================================" << std::endl;
-
-    bool canBuildCard =
-        currentPlayer->canAfford(cost, *otherPlayer, previewCard.getChainTarget());
-    bool canBuildWonder = false;
-    const auto &availableWonders = board.getAvailableWonders();
-    for (size_t i = 0; i < availableWonders.size(); ++i) {
-      if (availableWonders[i] != nullptr && !availableWonders[i]->isBuilt() &&
-          currentPlayer->canAfford(availableWonders[i]->getCost(),
-                                   *otherPlayer)) {
-        canBuildWonder = true;
-        break;
-      }
-    }
-
-    bool validChoice = false;
-    while (!validChoice) {
-      std::cout << "\nChoose action:" << std::endl;
-      std::cout << "1. Build Building";
-      if (!canBuildCard) {
-        std::cout << " [DISABLED - Cannot afford]";
-      }
-      std::cout << std::endl;
-
-      std::cout << "2. Discard for Coins (Gain "
-                << (2 + currentPlayer->getYellowCardCount()) << " coins)"
-                << std::endl;
-
-      std::cout << "3. Construct Wonder";
-      if (!canBuildWonder) {
-        std::cout << " [DISABLED - No affordable wonders available]";
-      }
-      std::cout << std::endl;
-      std::cout << "4. Exit Game" << std::endl;
-
-      std::string actionInput;
-      std::getline(std::cin, actionInput);
-
-      if (actionInput == "exit" || actionInput == "EXIT" ||
-          actionInput == "Exit") {
-        std::cout << "\nPlayer has chosen to exit the game. Goodbye!"
-                  << std::endl;
-        exit(0);
-      }
-
-      try {
-        int action = std::stoi(actionInput);
-        if (action == 1) {
-          if (canBuildCard) {
-            decision.action = DecisionAction::BUILD_CARD;
-            validChoice = true;
-          } else {
-            std::cout << "ERROR: You cannot afford to build this card!"
-                      << std::endl;
-          }
-        } else if (action == 2) {
-          decision.action = DecisionAction::DISCARD;
-          validChoice = true;
-        } else if (action == 3) {
-          if (!canBuildWonder) {
-            std::cout << "ERROR: No affordable wonders available!" << std::endl;
-            continue;
-          }
-
-          std::cout << "\nAvailable Wonders:" << std::endl;
-          for (size_t i = 0; i < availableWonders.size(); ++i) {
-            if (availableWonders[i] != nullptr &&
-                !availableWonders[i]->isBuilt()) {
-              const Cost &wonderCost = availableWonders[i]->getCost();
-              bool affordable = currentPlayer->canAfford(wonderCost, *otherPlayer);
-              std::cout << i << ". " << availableWonders[i]->getName()
-                        << " (Cost: " << wonderCost.coins << " coins";
-              if (!wonderCost.resources.empty()) {
-                std::cout << " + resources";
-              }
-              std::cout << ")";
-              if (!affordable) {
-                std::cout << " [Cannot afford]";
-              }
-              std::cout << std::endl;
-            }
-          }
-
-          std::cout << "Enter wonder number to build (or type 'exit' to quit): ";
-          std::string wonderInput;
-          std::getline(std::cin, wonderInput);
-
-          if (wonderInput == "exit" || wonderInput == "EXIT" ||
-              wonderInput == "Exit") {
-            std::cout << "\nPlayer has chosen to exit the game. Goodbye!"
-                      << std::endl;
-            exit(0);
-          }
-
-          try {
-            int wonderChoice = std::stoi(wonderInput);
-            if (wonderChoice >= 0 &&
-                wonderChoice < static_cast<int>(availableWonders.size()) &&
-                availableWonders[wonderChoice] != nullptr &&
-                !availableWonders[wonderChoice]->isBuilt() &&
-                currentPlayer->canAfford(
-                    availableWonders[wonderChoice]->getCost(), *otherPlayer)) {
-              decision.action = DecisionAction::BUILD_WONDER;
-              decision.wonderIndex = wonderChoice;
-              validChoice = true;
-            } else {
-              std::cout << "ERROR: Invalid wonder selection!" << std::endl;
-            }
-          } catch (const std::exception &) {
-            std::cout << "Invalid input. Please enter a wonder number." << std::endl;
-          }
-        } else if (action == 4) {
-          std::cout << "\nPlayer has chosen to exit the game. Goodbye!"
-                    << std::endl;
-          exit(0);
-        } else {
-          std::cout << "Invalid choice! Please enter 1, 2, 3, or 4."
-                    << std::endl;
-        }
-      } catch (const std::invalid_argument &) {
-        std::cout << "Invalid input. Please enter a number between 1 and 4, or "
-                     "type 'exit' to quit."
-                  << std::endl;
-      } catch (const std::out_of_range &) {
-        std::cout << "Number out of range. Please enter a valid choice."
-                  << std::endl;
-      }
-    }
-  }
 
   if (decision.action == DecisionAction::EXIT ||
-      decision.cardIndex < 0 || decision.cardIndex >= (int)pyramid.size()) {
+      decision.cardIndex < 0 || decision.cardIndex >= (int)pyramid.size() ||
+      !board.isCardAccessible(decision.cardIndex) ||
+      pyramid[decision.cardIndex].isTaken) {
     std::cout << "Invalid decision. Skipping turn." << std::endl;
     switchTurn();
     return;

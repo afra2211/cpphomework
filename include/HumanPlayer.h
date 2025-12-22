@@ -7,6 +7,8 @@ class HumanPlayer : public Player {
 public:
   HumanPlayer(std::string name);
   virtual ~HumanPlayer() override;
+
+  Decision makeDecision(const Game &game) override;
 };
 
 #endif // HUMANPLAYER_H

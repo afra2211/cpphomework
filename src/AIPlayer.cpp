@@ -22,7 +22,7 @@ AIPlayer::~AIPlayer() {
 
 // 核心AI决策函数 - 完整实现
 Decision AIPlayer::makeDecision(const Game &game) {
-  ConsoleView::printInfo(getName() + "(AI) begins to think...");
+  ConsoleView::printInfo(getName() + "AI begin to take action...");
 
   const Board &board = game.getBoard();
   const Player *selfPtr = this;

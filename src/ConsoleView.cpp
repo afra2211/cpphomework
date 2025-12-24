@@ -256,13 +256,14 @@ void ConsoleView::printPyramid(const Board &board, int age) {
       std::cout << std::endl;
 
       // Print card details row (only for face-up cards)
-      cardIndex -= rowSize; // Go back to row start
+      int rowStartIndex = cardIndex - rowSize;
       std::cout << "       ";
       for (int col = 0; col < rowSize; ++col) {
-          if (cardIndex >= static_cast<int>(pyramid.size()))
+          int currentIndex = rowStartIndex + col;
+          if (currentIndex >= static_cast<int>(pyramid.size()))
               break;
 
-          const auto &slot = pyramid[cardIndex];
+          const auto &slot = pyramid[currentIndex];
 
           if (slot.isTaken || !slot.isFaceUp) {
               std::cout << "                         "; // Placeholder
@@ -321,8 +322,6 @@ void ConsoleView::printPyramid(const Board &board, int age) {
 
               std::cout << std::setw(24) << std::left << effectStr << std::right;
           }
-
-          cardIndex++;
       }
       std::cout << std::endl << std::endl;
   }
@@ -359,6 +358,7 @@ void ConsoleView::printPyramid(const Board &board, int age) {
     if (!hasAccessible) std::cout << "None";
     std::cout << std::endl << std::string(70, '=') << std::endl;
 }
+
 
 // 4. 玩家状态显示
 void ConsoleView::printPlayerStatus(const Player &player,

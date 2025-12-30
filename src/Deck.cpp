@@ -8,8 +8,8 @@ namespace {
 void removeThreeRandom(std::vector<Card> &deck, std::vector<Card> *removed) {
   if (deck.size() <= 3)
     return;
-  static std::mt19937 rng(
-      static_cast<unsigned>(std::chrono::system_clock::now().time_since_epoch().count()));
+  static std::mt19937 rng(static_cast<unsigned>(
+      std::chrono::system_clock::now().time_since_epoch().count()));
   std::shuffle(deck.begin(), deck.end(), rng);
   if (removed) {
     removed->insert(removed->end(), deck.begin(), deck.begin() + 3);

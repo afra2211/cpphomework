@@ -3,7 +3,6 @@
 #include <memory>
 #include <stdexcept>
 
-
 // 单例模式实现
 CardFactory &CardFactory::getInstance() {
   static CardFactory instance;
@@ -89,27 +88,31 @@ std::unique_ptr<Card> CardFactory::createScientificCard(
 std::unique_ptr<Card> CardFactory::createCommercialCard(
     const std::string &name, int costCoins,
     const std::map<ResourceType, int> &costRes, int vp, int immediateCoins,
-    const std::map<ResourceType, int> &prodRes, const std::string &chainSymbol,
-    const std::string &chainTarget) {
+    const std::map<ResourceType, int> &prodRes,
+    const std::map<ResourceType, TradeDiscount> &tradeDiscounts,
+    const std::string &chainSymbol, const std::string &chainTarget) {
 
   Cost cost{costCoins, costRes};
   Effect effect;
   effect.victoryPoints = vp;
   effect.coins = immediateCoins;
   effect.resourcesProduced = prodRes;
+  effect.tradeDiscounts = tradeDiscounts;
 
   return createCardInternal(name, CardType::COMMERCIAL, cost, effect,
                             chainSymbol, chainTarget);
 }
 
 // 公会卡创建
+// 公会卡创建
 std::unique_ptr<Card>
 CardFactory::createGuildCard(const std::string &name,
                              const std::map<ResourceType, int> &costRes,
-                             int /*vpConditionType*/) {
+                             GuildType guildType) {
 
   Cost cost{0, costRes};
   Effect effect;
+  effect.guildType = guildType;
 
   return createCardInternal(name, CardType::GUILD, cost, effect, "", "");
 }
@@ -159,9 +162,25 @@ std::vector<Card> CardFactory::createAge1Deck() {
                            ScienceSymbol::MORTAR));
 
   add(createCommercialCard("TAVERN", 0, {}, 0, 4));
-  add(createCommercialCard("EAST TRADING POST", 0, {}, 0, 0));
-  add(createCommercialCard("WEST TRADING POST", 0, {}, 0, 0));
-  add(createCommercialCard("MARKETPLACE", 0, {}, 0, 0));
+
+  // 贸易卡牌：根据规则修复名称和效果
+  // WOOD RESERVE (Cost 3) -> Wood trade cost = 1
+  TradeDiscount woodDiscount;
+  woodDiscount.priceToOne = true;
+  add(createCommercialCard("WOOD RESERVE", 3, {}, 0, 0, {},
+                           {{ResourceType::WOOD, woodDiscount}}));
+
+  // STONE RESERVE (Cost 3) -> Stone trade cost = 1
+  TradeDiscount stoneDiscount;
+  stoneDiscount.priceToOne = true;
+  add(createCommercialCard("STONE RESERVE", 3, {}, 0, 0, {},
+                           {{ResourceType::STONE, stoneDiscount}}));
+
+  // CLAY RESERVE (Cost 3) -> Clay trade cost = 1
+  TradeDiscount clayDiscount;
+  clayDiscount.priceToOne = true;
+  add(createCommercialCard("CLAY RESERVE", 3, {}, 0, 0, {},
+                           {{ResourceType::CLAY, clayDiscount}}));
 
   add(createCivilianCard("BATHS", 0, {{ResourceType::STONE, 1}}, 3, "",
                          "AQUEDUCT"));
@@ -219,14 +238,20 @@ std::vector<Card> CardFactory::createAge2Deck() {
   add(createCivilianCard("COURTHOUSE", 0,
                          {{ResourceType::PAPER, 1}, {ResourceType::CLAY, 2}}, 4,
                          "", "SENATE"));
+  add(createCivilianCard(
+      "ROSTRUM", 0, {{ResourceType::STONE, 1}, {ResourceType::WOOD, 1}}, 4));
 
-  add(createCommercialCard("CUSTOMS HOUSE", 0, {{ResourceType::GLASS, 1}}, 0,
-                           0));
+  TradeDiscount customsDiscount;
+  customsDiscount.priceToOne = true;
+  add(createCommercialCard("CUSTOMS HOUSE", 0, {{ResourceType::GLASS, 1}}, 0, 0,
+                           {},
+                           {{ResourceType::GLASS, customsDiscount},
+                            {ResourceType::PAPER, customsDiscount}}));
   add(createCommercialCard("CARAVANSERY", 0, {{ResourceType::WOOD, 2}}, 2, 0));
   add(createCommercialCard("FORUM", 0, {{ResourceType::CLAY, 2}}, 0, 0));
   add(createCommercialCard("LIGHTHOUSE", 0,
                            {{ResourceType::STONE, 1}, {ResourceType::GLASS, 1}},
-                           1, 0, {}, "", "PORT"));
+                           1, 0, {}, {}, "", "PORT"));
   add(createCommercialCard("BREWERY", 0, {}, 0, 6));
 
   return deck;
@@ -249,6 +274,8 @@ std::vector<Card> CardFactory::createAge3Deck() {
   add(createMilitaryCard("SIEGE WORKSHOP", 0,
                          {{ResourceType::CLAY, 3}, {ResourceType::GLASS, 1}},
                          2));
+  add(createMilitaryCard("PRETORIUM", 0, {{ResourceType::STONE, 3}}, 3,
+                         "WALLS"));
 
   add(createScientificCard("UNIVERSITY", 0,
                            {{ResourceType::GLASS, 2}, {ResourceType::WOOD, 1}},
@@ -262,6 +289,11 @@ std::vector<Card> CardFactory::createAge3Deck() {
   add(createScientificCard("LODGING", 0,
                            {{ResourceType::PAPER, 1}, {ResourceType::CLAY, 2}},
                            2, ScienceSymbol::MORTAR, "DISPENSARY"));
+  add(createScientificCard("ACADEMY", 0,
+                           {{ResourceType::STONE, 1},
+                            {ResourceType::WOOD, 1},
+                            {ResourceType::GLASS, 1}},
+                           3, ScienceSymbol::GEAR, "SCHOOL"));
 
   add(createCivilianCard("PANTHEON", 0,
                          {{ResourceType::GLASS, 1},
@@ -285,6 +317,9 @@ std::vector<Card> CardFactory::createAge3Deck() {
                           {ResourceType::WOOD, 1},
                           {ResourceType::PAPER, 1}},
                          6, "COURTHOUSE"));
+  add(createCivilianCard("OBELISK", 0,
+                         {{ResourceType::STONE, 2}, {ResourceType::GLASS, 1}},
+                         5, "TEMPLE"));
 
   add(createCommercialCard(
       "PORT", 0, {{ResourceType::WOOD, 1}, {ResourceType::GLASS, 1}}, 3, 0));
@@ -306,22 +341,28 @@ std::vector<Card> CardFactory::createGuildCards() {
   std::vector<Card> deck;
   auto add = [&deck](std::unique_ptr<Card> card) { deck.push_back(*card); };
   add(createGuildCard("MERCHANTS' GUILD",
-                      {{ResourceType::GLASS, 1}, {ResourceType::PAPER, 1}}, 0));
+                      {{ResourceType::GLASS, 1}, {ResourceType::PAPER, 1}},
+                      GuildType::TRADERS));
   add(createGuildCard("SHIPOWNERS' GUILD",
-                      {{ResourceType::WOOD, 2}, {ResourceType::GLASS, 1}}, 0));
+                      {{ResourceType::WOOD, 2}, {ResourceType::GLASS, 1}},
+                      GuildType::SHIPOWNERS));
   add(createGuildCard("BUILDERS' GUILD",
-                      {{ResourceType::STONE, 2}, {ResourceType::PAPER, 1}}, 0));
+                      {{ResourceType::STONE, 2}, {ResourceType::PAPER, 1}},
+                      GuildType::BUILDERS));
   add(createGuildCard("MAGISTRATES' GUILD",
-                      {{ResourceType::STONE, 2}, {ResourceType::GLASS, 1}}, 0));
+                      {{ResourceType::STONE, 2}, {ResourceType::GLASS, 1}},
+                      GuildType::MAGISTRATES));
   add(createGuildCard("TACTICIANS' GUILD",
-                      {{ResourceType::CLAY, 2}, {ResourceType::GLASS, 1}}, 0));
+                      {{ResourceType::CLAY, 2}, {ResourceType::GLASS, 1}},
+                      GuildType::TACTICIANS));
   add(createGuildCard("SCIENTISTS' GUILD",
-                      {{ResourceType::WOOD, 2}, {ResourceType::PAPER, 1}}, 0));
+                      {{ResourceType::WOOD, 2}, {ResourceType::PAPER, 1}},
+                      GuildType::SCIENTISTS));
   add(createGuildCard("MONEY LENDERS' GUILD",
                       {{ResourceType::STONE, 1},
                        {ResourceType::CLAY, 1},
                        {ResourceType::WOOD, 1}},
-                      0));
+                      GuildType::MONEYLENDERS));
   return deck;
 }
 
@@ -365,7 +406,7 @@ std::vector<std::unique_ptr<Wonder>> CardFactory::createAllWonders() {
 
   Effect greatLibrary;
   greatLibrary.victoryPoints = 4;
-  greatLibrary.gainProgressToken = true;
+  greatLibrary.gainProgressTokenFromBox = true;
   wonders.push_back(createWonder("GREAT LIBRARY", 2,
                                  {{ResourceType::PAPER, 1},
                                   {ResourceType::WOOD, 1},
@@ -374,9 +415,9 @@ std::vector<std::unique_ptr<Wonder>> CardFactory::createAllWonders() {
 
   Effect greatLighthouse;
   greatLighthouse.victoryPoints = 4;
-  greatLighthouse.resourcesProduced[ResourceType::WOOD] = 1;
-  greatLighthouse.resourcesProduced[ResourceType::STONE] = 1;
-  greatLighthouse.resourcesProduced[ResourceType::CLAY] = 1;
+  // Produce 1 of Wood/Stone/Clay
+  greatLighthouse.productionChoice = {ResourceType::WOOD, ResourceType::STONE,
+                                      ResourceType::CLAY};
   wonders.push_back(createWonder(
       "GREAT LIGHTHOUSE", 2,
       {{ResourceType::STONE, 2}, {ResourceType::GLASS, 1}}, greatLighthouse));
@@ -412,8 +453,8 @@ std::vector<std::unique_ptr<Wonder>> CardFactory::createAllWonders() {
       hangingGardens));
 
   Effect piraeus;
-  piraeus.resourcesProduced[ResourceType::GLASS] = 1;
-  piraeus.resourcesProduced[ResourceType::PAPER] = 1;
+  // Produce 1 of Glass/Paper
+  piraeus.productionChoice = {ResourceType::GLASS, ResourceType::PAPER};
   piraeus.playAgain = true;
   wonders.push_back(createWonder(
       "PIRAEUS", 2, {{ResourceType::CLAY, 2}, {ResourceType::GLASS, 1}},
@@ -423,6 +464,7 @@ std::vector<std::unique_ptr<Wonder>> CardFactory::createAllWonders() {
   appianWay.victoryPoints = 3;
   appianWay.coins = 3;
   appianWay.playAgain = true;
+  appianWay.opponentCoinsLoss = 3;
   wonders.push_back(createWonder("APPIAN WAY", 2,
                                  {{ResourceType::STONE, 1},
                                   {ResourceType::CLAY, 1},

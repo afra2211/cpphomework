@@ -21,7 +21,7 @@ public:
   bool isBuilt() const;
   Effect build();
   // 新增：执行奇迹效果
-  void activateEffect(Game& game, Player& owner, Player& opponent);
+  void activateEffect(Game &game, Player &owner, Player &opponent);
 
 private:
   std::string name;

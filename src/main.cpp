@@ -1,8 +1,9 @@
 #include "Game.h"
+#include <cstdlib>
+#include <ctime>
 #include <iostream>
 #include <limits>
-#include <ctime>
-#include <cstdlib>
+
 
 void clearInput() {
   std::cin.clear();
@@ -10,11 +11,11 @@ void clearInput() {
 }
 
 int main() {
-    std::srand(static_cast<unsigned int>(std::time(nullptr)));
-    std::cout << "==================================" << std::endl;
-    std::cout << "   7 WONDERS DUEL - CONSOLE GAME" << std::endl;
-    std::cout << "==================================" << std::endl;
-    std::cout << std::endl;
+  std::srand(static_cast<unsigned int>(std::time(nullptr)));
+  std::cout << "==================================" << std::endl;
+  std::cout << "   7 WONDERS DUEL - CONSOLE GAME" << std::endl;
+  std::cout << "==================================" << std::endl;
+  std::cout << std::endl;
 
   // Game setup
   std::string p1Name, p2Name;

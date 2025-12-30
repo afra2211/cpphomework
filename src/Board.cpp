@@ -2,6 +2,7 @@
 #include "Player.h"
 #include <algorithm>
 #include <iostream>
+#include <random>
 #include <stdexcept>
 
 /**
@@ -47,7 +48,7 @@ void Board::setupAge(int age, std::vector<Card> deck,
  * @brief 获取当前金字塔布局的所有卡牌槽位
  * @return 卡牌槽位向量的只读引用
  */
-const std::vector<CardSlot> &Board::getPyramid() const { return pyramid; }
+const std::map<int, CardSlot> &Board::getPyramid() const { return pyramid; }
 
 /**
  * @brief 检查指定卡牌是否可被玩家访问
@@ -56,21 +57,17 @@ const std::vector<CardSlot> &Board::getPyramid() const { return pyramid; }
  * @note 可访问条件：1.索引有效 2.卡牌未被拿走 3.所有覆盖此卡的卡牌已被拿走
  */
 bool Board::isCardAccessible(int index) const {
-  // 检查索引有效性
-  if (index < 0 || index >= static_cast<int>(pyramid.size()))
+  auto it = pyramid.find(index);
+  if (it == pyramid.end() || it->second.isTaken)
     return false;
 
-  // 检查卡牌是否已被玩家拿走
-  if (pyramid[index].isTaken)
-    return false;
-
-  // 检查是否被其他卡牌覆盖（所有覆盖卡必须已被拿走）
-  for (int coverIndex : pyramid[index].coveredBy) {
-    if (!pyramid[coverIndex].isTaken) {
-      return false; // 存在未被拿走的覆盖卡，当前卡不可访问
+  for (int coverIndex : it->second.coveredBy) {
+    auto coverIt = pyramid.find(coverIndex);
+    if (coverIt != pyramid.end() && !coverIt->second.isTaken) {
+      return false;
     }
   }
-  return true; // 所有条件满足，卡牌可访问
+  return true;
 }
 
 /**
@@ -231,9 +228,20 @@ void Board::setupProgressTokens() {
   shuffleProgressTokens();
 
   // 从打乱后的标记池中选择前5个放置到游戏板
-  int tokensToPlace = std::min(5, static_cast<int>(allProgressTokens.size()));
-  for (int i = 0; i < tokensToPlace; ++i) {
+  std::random_device rd;
+  std::mt19937 g(rd());
+  std::shuffle(allProgressTokens.begin(), allProgressTokens.end(), g);
+
+  // 4. 将前5个标记放入游戏板
+  availableProgressTokens.clear();
+  removedProgressTokens.clear(); // Clear previously removed tokens
+  for (int i = 0; i < 5 && i < (int)allProgressTokens.size(); ++i) {
     availableProgressTokens.push_back(allProgressTokens[i]);
+  }
+
+  // The rest go to removed tokens
+  for (size_t i = 5; i < allProgressTokens.size(); ++i) {
+    removedProgressTokens.push_back(allProgressTokens[i]);
   }
 
   // 重置科学符号计数（新游戏开始）
@@ -241,11 +249,15 @@ void Board::setupProgressTokens() {
 }
 
 /**
- * @brief 获取当前可用的进步标记列表
- * @return 可用进步标记列表的只读引用
+ * @brief 获取游戏板上剩余可用的进步标记
+ * @return 进步标记向量的只读引用
  */
 const std::vector<ProgressToken> &Board::getAvailableProgressTokens() const {
   return availableProgressTokens;
+}
+
+const std::vector<ProgressToken> &Board::getRemovedProgressTokens() const {
+  return removedTokens;
 }
 
 /**
@@ -255,17 +267,22 @@ const std::vector<ProgressToken> &Board::getAvailableProgressTokens() const {
  * @throws std::runtime_error 如果索引无效
  */
 ProgressToken Board::takeProgressToken(int index) {
-  // 异常处理：检查索引有效性
-  if (index < 0 || index >= static_cast<int>(availableProgressTokens.size())) {
-    throw std::runtime_error("Invalid progress token index");
+  if (index < 0 || index >= (int)availableProgressTokens.size()) {
+    throw std::runtime_error("Invalid token index");
   }
 
-  // 获取标记对象
   ProgressToken token = availableProgressTokens[index];
-
-  // 从可用列表中移除该标记（每个标记只能被获取一次）
   availableProgressTokens.erase(availableProgressTokens.begin() + index);
+  return token;
+}
 
+ProgressToken Board::takeRemovedProgressToken(int index) {
+  if (index < 0 || index >= (int)removedProgressTokens.size()) {
+    throw std::runtime_error("Invalid removed token index");
+  }
+
+  ProgressToken token = removedProgressTokens[index];
+  removedProgressTokens.erase(removedProgressTokens.begin() + index);
   return token;
 }
 
@@ -483,9 +500,9 @@ void ProgressToken::applyEffect(Player *player) {
  * @param faceUp 是否正面朝上
  * @param coveredBy 覆盖此卡牌的槽位索引列表
  */
-void addSlot(std::vector<CardSlot> &p, const Card &c, bool faceUp,
+void addSlot(std::map<int, CardSlot> &p, int index, const Card &c, bool faceUp,
              const std::vector<int> &coveredBy) {
-  p.push_back({c, faceUp, false, coveredBy});
+  p[index] = {c, faceUp, false, coveredBy};
 }
 
 /**
@@ -498,33 +515,32 @@ void Board::setupAge1(std::vector<Card> &deck) {
   if (deck.size() < 20)
     return;
 
-  int cardIdx = 0; // 卡牌索引计数器
+  int cardIdx = 0;
+  // Row 1 (Top, 2 cards) - Indices 0-1
+  addSlot(pyramid, 0, deck[cardIdx++], true, {2, 3});
+  addSlot(pyramid, 1, deck[cardIdx++], true, {3, 4});
 
-  // 第0行（顶层）：2张卡牌，每张覆盖第1行的2张卡牌
-  addSlot(pyramid, deck[cardIdx++], true, {2, 3}); // 卡牌0，覆盖2和3
-  addSlot(pyramid, deck[cardIdx++], true, {3, 4}); // 卡牌1，覆盖3和4
+  // Row 2 (3 cards) - Indices 2-4
+  addSlot(pyramid, 2, deck[cardIdx++], false, {5, 6});
+  addSlot(pyramid, 3, deck[cardIdx++], false, {6, 7});
+  addSlot(pyramid, 4, deck[cardIdx++], false, {7, 8});
 
-  // 第1行：3张卡牌，每张覆盖第2行的2张卡牌
-  addSlot(pyramid, deck[cardIdx++], false, {5, 6}); // 卡牌2，覆盖5和6
-  addSlot(pyramid, deck[cardIdx++], false, {6, 7}); // 卡牌3，覆盖6和7
-  addSlot(pyramid, deck[cardIdx++], false, {7, 8}); // 卡牌4，覆盖7和8
+  // Row 3 (4 cards) - Indices 5-8
+  addSlot(pyramid, 5, deck[cardIdx++], true, {9, 10});
+  addSlot(pyramid, 6, deck[cardIdx++], true, {10, 11});
+  addSlot(pyramid, 7, deck[cardIdx++], true, {11, 12});
+  addSlot(pyramid, 8, deck[cardIdx++], true, {12, 13});
 
-  // 第2行：4张卡牌，每张覆盖第3行的2张卡牌
-  addSlot(pyramid, deck[cardIdx++], true, {9, 10});  // 卡牌5，覆盖9和10
-  addSlot(pyramid, deck[cardIdx++], true, {10, 11}); // 卡牌6，覆盖10和11
-  addSlot(pyramid, deck[cardIdx++], true, {11, 12}); // 卡牌7，覆盖11和12
-  addSlot(pyramid, deck[cardIdx++], true, {12, 13}); // 卡牌8，覆盖12和13
+  // Row 4 (5 cards) - Indices 9-13
+  addSlot(pyramid, 9, deck[cardIdx++], false, {14, 15});
+  addSlot(pyramid, 10, deck[cardIdx++], false, {15, 16});
+  addSlot(pyramid, 11, deck[cardIdx++], false, {16, 17});
+  addSlot(pyramid, 12, deck[cardIdx++], false, {17, 18});
+  addSlot(pyramid, 13, deck[cardIdx++], false, {18, 19});
 
-  // 第3行：5张卡牌，每张覆盖第4行的2张卡牌
-  addSlot(pyramid, deck[cardIdx++], false, {14, 15}); // 卡牌9，覆盖14和15
-  addSlot(pyramid, deck[cardIdx++], false, {15, 16}); // 卡牌10，覆盖15和16
-  addSlot(pyramid, deck[cardIdx++], false, {16, 17}); // 卡牌11，覆盖16和17
-  addSlot(pyramid, deck[cardIdx++], false, {17, 18}); // 卡牌12，覆盖17和18
-  addSlot(pyramid, deck[cardIdx++], false, {18, 19}); // 卡牌13，覆盖18和19
-
-  // 第4行（底层）：6张卡牌，无覆盖（初始即可访问）
-  for (int i = 0; i < 6; ++i) {
-    addSlot(pyramid, deck[cardIdx++], true, {}); // 卡牌14-19，无覆盖
+  // Row 5 (Bottom, 6 cards) - Indices 14-19
+  for (int i = 14; i <= 19; ++i) {
+    addSlot(pyramid, i, deck[cardIdx++], true, {});
   }
 }
 
@@ -534,41 +550,45 @@ void Board::setupAge1(std::vector<Card> &deck) {
  * @note 布局结构：6-5-4-3-2行的倒金字塔，底层6张卡被上层覆盖
  */
 void Board::setupAge2(std::vector<Card> &deck) {
-  // 检查卡牌数量是否足够
   if (deck.size() < 20)
     return;
+  pyramid.clear();
+  int cardIdx = 0;
 
-  int cardIdx = 0; // 卡牌索引计数器
+  // Inverted Pyramid structure for Age 2 (approximate for Duel)
+  // Actually Age 2 is also mostly pyramid but inverted visibility or structure?
+  // Let's stick to the indices provided in original code but use addSlot
+  // correctly.
 
-  // 第0行（顶层）：6张卡牌，被第1行覆盖
-  addSlot(pyramid, deck[cardIdx++], true, {6});     // 卡牌0，被6覆盖
-  addSlot(pyramid, deck[cardIdx++], true, {6, 7});  // 卡牌1，被6和7覆盖
-  addSlot(pyramid, deck[cardIdx++], true, {7, 8});  // 卡牌2，被7和8覆盖
-  addSlot(pyramid, deck[cardIdx++], true, {8, 9});  // 卡牌3，被8和9覆盖
-  addSlot(pyramid, deck[cardIdx++], true, {9, 10}); // 卡牌4，被9和10覆盖
-  addSlot(pyramid, deck[cardIdx++], true, {10});    // 卡牌5，被10覆盖
+  // Row 1 (6 cards) 0-5
+  addSlot(pyramid, 0, deck[cardIdx++], true, {6});
+  addSlot(pyramid, 1, deck[cardIdx++], true, {6, 7});
+  addSlot(pyramid, 2, deck[cardIdx++], true, {7, 8});
+  addSlot(pyramid, 3, deck[cardIdx++], true, {8, 9});
+  addSlot(pyramid, 4, deck[cardIdx++], true, {9, 10});
+  addSlot(pyramid, 5, deck[cardIdx++], true, {10});
 
-  // 第1行：5张卡牌，被第2行覆盖
-  addSlot(pyramid, deck[cardIdx++], false, {11});     // 卡牌6，被11覆盖
-  addSlot(pyramid, deck[cardIdx++], false, {11, 12}); // 卡牌7，被11和12覆盖
-  addSlot(pyramid, deck[cardIdx++], false, {12, 13}); // 卡牌8，被12和13覆盖
-  addSlot(pyramid, deck[cardIdx++], false, {13, 14}); // 卡牌9，被13和14覆盖
-  addSlot(pyramid, deck[cardIdx++], false, {14});     // 卡牌10，被14覆盖
+  // Row 2 (5 cards) 6-10
+  addSlot(pyramid, 6, deck[cardIdx++], false, {11});
+  addSlot(pyramid, 7, deck[cardIdx++], false, {11, 12});
+  addSlot(pyramid, 8, deck[cardIdx++], false, {12, 13});
+  addSlot(pyramid, 9, deck[cardIdx++], false, {13, 14});
+  addSlot(pyramid, 10, deck[cardIdx++], false, {14});
 
-  // 第2行：4张卡牌，被第3行覆盖
-  addSlot(pyramid, deck[cardIdx++], true, {15});     // 卡牌11，被15覆盖
-  addSlot(pyramid, deck[cardIdx++], true, {15, 16}); // 卡牌12，被15和16覆盖
-  addSlot(pyramid, deck[cardIdx++], true, {16, 17}); // 卡牌13，被16和17覆盖
-  addSlot(pyramid, deck[cardIdx++], true, {17});     // 卡牌14，被17覆盖
+  // Row 3 (4 cards) 11-14
+  addSlot(pyramid, 11, deck[cardIdx++], true, {15});
+  addSlot(pyramid, 12, deck[cardIdx++], true, {15, 16});
+  addSlot(pyramid, 13, deck[cardIdx++], true, {16, 17});
+  addSlot(pyramid, 14, deck[cardIdx++], true, {17});
 
-  // 第3行：3张卡牌，被第4行覆盖
-  addSlot(pyramid, deck[cardIdx++], false, {18});     // 卡牌15，被18覆盖
-  addSlot(pyramid, deck[cardIdx++], false, {18, 19}); // 卡牌16，被18和19覆盖
-  addSlot(pyramid, deck[cardIdx++], false, {19});     // 卡牌17，被19覆盖
+  // Row 4 (3 cards) 15-17
+  addSlot(pyramid, 15, deck[cardIdx++], false, {18});
+  addSlot(pyramid, 16, deck[cardIdx++], false, {18, 19});
+  addSlot(pyramid, 17, deck[cardIdx++], false, {19});
 
-  // 第4行（底层）：2张卡牌，无覆盖（初始即可访问）
-  addSlot(pyramid, deck[cardIdx++], true, {}); // 卡牌18，无覆盖
-  addSlot(pyramid, deck[cardIdx++], true, {}); // 卡牌19，无覆盖
+  // Row 5 (2 cards) 18-19
+  addSlot(pyramid, 18, deck[cardIdx++], true, {});
+  addSlot(pyramid, 19, deck[cardIdx++], true, {});
 }
 
 /**
@@ -577,6 +597,38 @@ void Board::setupAge2(std::vector<Card> &deck) {
  * @note 布局结构：与时代1相同的正金字塔布局
  */
 void Board::setupAge3(std::vector<Card> &deck) {
-  // 重用时代1的布局设置函数
-  setupAge1(deck);
+  if (deck.size() < 20)
+    return;
+  pyramid.clear();
+  int cardIdx = 0;
+
+  // Age 3 shape: similar to Age 1 but more cards? Spec says 20 cards.
+  // Using the pattern from Age 1 (regular pyramid).
+
+  // Row 1 (2 cards) 0-1
+  addSlot(pyramid, 0, deck[cardIdx++], true, {2, 3});
+  addSlot(pyramid, 1, deck[cardIdx++], true, {3, 4});
+
+  // Row 2 (3 cards) 2-4
+  addSlot(pyramid, 2, deck[cardIdx++], false, {5, 6});
+  addSlot(pyramid, 3, deck[cardIdx++], false, {6, 7});
+  addSlot(pyramid, 4, deck[cardIdx++], false, {7, 8});
+
+  // Row 3 (4 cards) 5-8
+  addSlot(pyramid, 5, deck[cardIdx++], true, {9, 10});
+  addSlot(pyramid, 6, deck[cardIdx++], true, {10, 11});
+  addSlot(pyramid, 7, deck[cardIdx++], true, {11, 12});
+  addSlot(pyramid, 8, deck[cardIdx++], true, {12, 13});
+
+  // Row 4 (5 cards) 9-13
+  addSlot(pyramid, 9, deck[cardIdx++], false, {14, 15});
+  addSlot(pyramid, 10, deck[cardIdx++], false, {15, 16});
+  addSlot(pyramid, 11, deck[cardIdx++], false, {16, 17});
+  addSlot(pyramid, 12, deck[cardIdx++], false, {17, 18});
+  addSlot(pyramid, 13, deck[cardIdx++], false, {18, 19});
+
+  // Row 5 (6 cards) 14-19
+  for (int i = 14; i <= 19; ++i) {
+    addSlot(pyramid, i, deck[cardIdx++], true, {});
+  }
 }

@@ -19,7 +19,7 @@ Decision HumanPlayer::makeDecision(const Game &game) {
 
   std::vector<int> accessibleIndices;
   for (size_t i = 0; i < pyramid.size(); ++i) {
-    if (board.isCardAccessible(i) && !pyramid[i].isTaken) {
+    if (board.isCardAccessible(i) && pyramid.at(i).isFaceUp) {
       accessibleIndices.push_back(static_cast<int>(i));
     }
   }
@@ -38,14 +38,15 @@ Decision HumanPlayer::makeDecision(const Game &game) {
     std::getline(std::cin, input);
 
     if (input == "exit" || input == "EXIT" || input == "Exit") {
-      std::cout << "\nPlayer has chosen to exit the game. Goodbye!" << std::endl;
+      std::cout << "\nPlayer has chosen to exit the game. Goodbye!"
+                << std::endl;
       exit(0);
     }
 
     try {
       int selection = std::stoi(input);
       if (!board.isCardAccessible(selection) || selection < 0 ||
-          selection >= (int)pyramid.size() || pyramid[selection].isTaken) {
+          selection >= (int)pyramid.size() || !pyramid.at(selection).isFaceUp) {
         std::cout << "Invalid card! Choose an accessible card." << std::endl;
       } else {
         decision.cardIndex = selection;
@@ -61,20 +62,19 @@ Decision HumanPlayer::makeDecision(const Game &game) {
     }
   }
 
-  const Card &previewCard = pyramid[decision.cardIndex].card;
+  const Card &previewCard = pyramid.at(decision.cardIndex).card;
   const Cost &cost = previewCard.getCost();
 
   std::cout << "\n========================================" << std::endl;
-  std::cout << "You selected: " << previewCard.getName() << " (Cost: "
-            << cost.coins;
+  std::cout << "[" << decision.cardIndex << "] " << previewCard.getName()
+            << " (Cost: " << cost.coins;
   if (!cost.resources.empty()) {
     std::cout << " + resources";
   }
   std::cout << ")" << std::endl;
   std::cout << "========================================" << std::endl;
 
-  bool canBuildCard =
-      canAfford(cost, opponent, previewCard.getChainTarget());
+  bool canBuildCard = canAfford(cost, opponent, previewCard.getChainTarget());
   bool canBuildWonder = false;
   const auto &availableWonders = board.getAvailableWonders();
   for (size_t i = 0; i < availableWonders.size(); ++i) {
@@ -105,7 +105,8 @@ Decision HumanPlayer::makeDecision(const Game &game) {
 
     if (actionInput == "exit" || actionInput == "EXIT" ||
         actionInput == "Exit") {
-      std::cout << "\nPlayer has chosen to exit the game. Goodbye!" << std::endl;
+      std::cout << "\nPlayer has chosen to exit the game. Goodbye!"
+                << std::endl;
       exit(0);
     }
 
@@ -130,7 +131,8 @@ Decision HumanPlayer::makeDecision(const Game &game) {
 
         std::cout << "\nAvailable Wonders:" << std::endl;
         for (size_t i = 0; i < availableWonders.size(); ++i) {
-          if (availableWonders[i] != nullptr && !availableWonders[i]->isBuilt()) {
+          if (availableWonders[i] != nullptr &&
+              !availableWonders[i]->isBuilt()) {
             const Cost &wonderCost = availableWonders[i]->getCost();
             bool affordable = canAfford(wonderCost, opponent);
             std::cout << i << ". " << availableWonders[i]->getName()
@@ -171,14 +173,15 @@ Decision HumanPlayer::makeDecision(const Game &game) {
             std::cout << "ERROR: Invalid wonder selection!" << std::endl;
           }
         } catch (const std::exception &) {
-          std::cout << "Invalid input. Please enter a wonder number." << std::endl;
+          std::cout << "Invalid input. Please enter a wonder number."
+                    << std::endl;
         }
       } else if (action == 4) {
-        std::cout << "\nPlayer has chosen to exit the game. Goodbye!" << std::endl;
+        std::cout << "\nPlayer has chosen to exit the game. Goodbye!"
+                  << std::endl;
         exit(0);
       } else {
-        std::cout << "Invalid choice! Please enter 1, 2, 3, or 4."
-                  << std::endl;
+        std::cout << "Invalid choice! Please enter 1, 2, 3, or 4." << std::endl;
       }
     } catch (const std::invalid_argument &) {
       std::cout << "Invalid input. Please enter a number between 1 and 4, or "

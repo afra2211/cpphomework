@@ -57,6 +57,7 @@ public:
       const std::string &name, int costCoins,
       const std::map<ResourceType, int> &costRes, int vp, int immediateCoins,
       const std::map<ResourceType, int> &prodRes = {},
+      const std::map<ResourceType, TradeDiscount> &tradeDiscounts = {},
       const std::string &chainSymbol = "", const std::string &chainTarget = "");
 
   // 紫色卡牌 (公会) - 重点是复杂的 VP 计算 (这里简化为固定VP，后续可扩展 Effect
@@ -64,7 +65,7 @@ public:
   std::unique_ptr<Card>
   createGuildCard(const std::string &name,
                   const std::map<ResourceType, int> &costRes,
-                  int vpConditionType); // 示例：用 int 代表不同的公会得分策略
+                  GuildType guildType);
 
   // === 3. 奇迹创建接口 ===
   // 将 Wonder 的创建也封装在这里

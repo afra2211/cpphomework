@@ -12,11 +12,11 @@
 class Player;
 
 struct MilitaryToken {
-    int threshold;          // 触发位置（距离对手首都的格数）
-    int coinPenalty;        // 罚款/奖励金币（对手扣除）
-    int victoryPoints = 0;  // 触发方获得的胜利点
-    int extraShields = 0;   // 额外盾牌（继续沿当前方向移动）
-    bool removed{false};
+  int threshold;         // 触发位置（距离对手首都的格数）
+  int coinPenalty;       // 罚款/奖励金币（对手扣除）
+  int victoryPoints = 0; // 触发方获得的胜利点
+  int extraShields = 0;  // 额外盾牌（继续沿当前方向移动）
+  bool removed{false};
 };
 
 // 卡牌槽位结构体：表示金字塔布局中的每个卡牌位置
@@ -89,7 +89,7 @@ public:
    * @brief 获取当前金字塔布局的所有卡牌槽位
    * @return 所有卡牌槽位的只读引用
    */
-  const std::vector<CardSlot> &getPyramid() const;
+  const std::map<int, CardSlot> &getPyramid() const;
 
   /**
    * @brief 检查指定索引的卡牌是否可访问
@@ -176,6 +176,7 @@ public:
    * @note 返回的是游戏板上实际放置的5个进步标记
    */
   const std::vector<ProgressToken> &getAvailableProgressTokens() const;
+  const std::vector<ProgressToken> &getRemovedProgressTokens() const;
 
   /**
    * @brief 玩家拿走指定进步标记
@@ -185,6 +186,7 @@ public:
    * @note 拿走后会从可用标记列表中移除该标记
    */
   ProgressToken takeProgressToken(int index);
+  ProgressToken takeRemovedProgressToken(int index);
 
   /**
    * @brief 检查玩家是否可以获取进步标记
@@ -204,10 +206,12 @@ public:
 
 private:
   // === 核心游戏数据成员 ===
-  std::vector<CardSlot> pyramid;          // 卡牌金字塔布局（时代1-3的不同结构）
-  int militaryPosition;                   // 军事标记位置（-9到9，0为中央）
+  std::vector<ProgressToken> availableTokens;
+  std::vector<ProgressToken> removedTokens;  // Tokens returned to box
+  std::map<int, CardSlot> pyramid;           // int=index in layout
+  int militaryPosition;                      // 军事标记位置（-9到9，0为中央）
   std::vector<MilitaryToken> militaryTokens; // 军事区段 token 配置
-  std::vector<Wonder *> availableWonders; // 当前可用的奇迹列表
+  std::vector<Wonder *> availableWonders;    // 当前可用的奇迹列表
 
   // === 新增：进步标记系统数据成员 ===
   std::vector<ProgressToken>

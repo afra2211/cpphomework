@@ -37,7 +37,7 @@ int AI::getBestMove(const Game &game, const Player &player) {
       (&player == &game.getPlayer1()) ? game.getPlayer2() : game.getPlayer1();
 
   for (int idx : accessibleIndices) {
-    const Card &card = pyramid[idx].card;
+    const Card &card = pyramid.at(idx).card;
     int score = 0;
 
     if (player.canAfford(card.getCost(), opponent)) {

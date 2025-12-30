@@ -4,7 +4,6 @@
 #include "Player.h"
 #include <stdexcept>
 
-
 std::string Wonder::getName() const { return name; }
 
 const Cost &Wonder::getCost() const { return cost; }

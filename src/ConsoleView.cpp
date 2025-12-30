@@ -80,72 +80,97 @@ static std::string getCardTypeName(CardType type) {
   }
 }
 
-static std::string getCostString(const Cost& cost, int maxLength = 15) {
-    std::string result;
+static std::string getCostString(const Cost &cost, int maxLength = 15) {
+  std::string result;
 
-    if (cost.coins > 0) {
-        result += std::to_string(cost.coins) + "C ";
+  if (cost.coins > 0) {
+    result += std::to_string(cost.coins) + "C ";
+  }
+
+  for (const auto &[type, amount] : cost.resources) {
+    if (amount > 0) {
+      std::string resourceAbbr;
+      switch (type) {
+      case ResourceType::WOOD:
+        resourceAbbr = "W";
+        break;
+      case ResourceType::CLAY:
+        resourceAbbr = "C";
+        break;
+      case ResourceType::STONE:
+        resourceAbbr = "S";
+        break;
+      case ResourceType::GLASS:
+        resourceAbbr = "G";
+        break;
+      case ResourceType::PAPER:
+        resourceAbbr = "P";
+        break;
+      default:
+        resourceAbbr = "?";
+      }
+      result += std::to_string(amount) + resourceAbbr + " ";
     }
+  }
 
-    for (const auto& [type, amount] : cost.resources) {
-        if (amount > 0) {
-            std::string resourceAbbr;
-            switch (type) {
-                case ResourceType::WOOD: resourceAbbr = "W"; break;
-                case ResourceType::CLAY: resourceAbbr = "C"; break;
-                case ResourceType::STONE: resourceAbbr = "S"; break;
-                case ResourceType::GLASS: resourceAbbr = "G"; break;
-                case ResourceType::PAPER: resourceAbbr = "P"; break;
-                default: resourceAbbr = "?";
-            }
-            result += std::to_string(amount) + resourceAbbr + " ";
-        }
-    }
+  // If string is empty, it's free
+  if (result.empty()) {
+    result = "FREE";
+  }
 
-    // If string is empty, it's free
-    if (result.empty()) {
-        result = "FREE";
-    }
+  // Truncate to max length
+  if (result.length() > maxLength) {
+    result = result.substr(0, maxLength - 3) + "...";
+  }
 
-    // Truncate to max length
-    if (result.length() > maxLength) {
-        result = result.substr(0, maxLength - 3) + "...";
-    }
-
-    return result;
+  return result;
 }
 
 // === 辅助函数：获取卡牌简写信息 ===
-static std::string getCardShortInfo(const Card& card, bool showCost = true) {
-    std::string result = card.getName();
+static std::string getCardShortInfo(const Card &card, bool showCost = true) {
+  std::string result = card.getName();
 
-    // Truncate long names
-    if (result.length() > 10) {
-        result = result.substr(0, 10);
-    }
+  // Truncate long names
+  if (result.length() > 10) {
+    result = result.substr(0, 10);
+  }
 
-    // Add type abbreviation
-    std::string typeAbbr;
-    switch (card.getType()) {
-        case CardType::RAW_MATERIAL: typeAbbr = "[Br]"; break;
-        case CardType::MANUFACTURED_GOOD: typeAbbr = "[Gr]"; break;
-        case CardType::CIVILIAN: typeAbbr = "[Bl]"; break;
-        case CardType::SCIENTIFIC: typeAbbr = "[Gn]"; break;
-        case CardType::COMMERCIAL: typeAbbr = "[Yl]"; break;
-        case CardType::MILITARY: typeAbbr = "[Rd]"; break;
-        case CardType::GUILD: typeAbbr = "[Pu]"; break;
-        default: typeAbbr = "[?]";
-    }
+  // Add type abbreviation
+  std::string typeAbbr;
+  switch (card.getType()) {
+  case CardType::RAW_MATERIAL:
+    typeAbbr = "[Br]";
+    break;
+  case CardType::MANUFACTURED_GOOD:
+    typeAbbr = "[Gr]";
+    break;
+  case CardType::CIVILIAN:
+    typeAbbr = "[Bl]";
+    break;
+  case CardType::SCIENTIFIC:
+    typeAbbr = "[Gn]";
+    break;
+  case CardType::COMMERCIAL:
+    typeAbbr = "[Yl]";
+    break;
+  case CardType::MILITARY:
+    typeAbbr = "[Rd]";
+    break;
+  case CardType::GUILD:
+    typeAbbr = "[Pu]";
+    break;
+  default:
+    typeAbbr = "[?]";
+  }
 
-    // Add cost information
-    if (showCost) {
-        std::string costStr = getCostString(card.getCost(), 10);
-        return result + typeAbbr + "(" + costStr + ")";
-    }
+  // Add cost information
+  if (showCost) {
+    std::string costStr = getCostString(card.getCost(), 10);
+    return result + typeAbbr + "(" + costStr + ")";
+  }
 
-    return result + typeAbbr;
+  return result + typeAbbr;
 }
-
 
 // === 公开接口实现 ===
 
@@ -198,13 +223,16 @@ void ConsoleView::printBoard(const Game &game) {
 
 // 3. 金字塔布局显示（核心功能） - Updated to support Age 2 inversion
 void ConsoleView::printPyramid(const Board &board, int age) {
-    std::cout << "\nPYRAMID LAYOUT (Age " << age << "):" << std::endl;
-    std::cout << "Legend: *=accessible, [Br]=Brown, [Gr]=Grey, [Bl]=Blue," << std::endl;
-    std::cout << "        [Gn]=Green, [Yl]=Yellow, [Rd]=Red, [Pu]=Purple" << std::endl;
-    std::cout << "Resources: W=Wood, C=Clay, S=Stone, G=Glass, P=Paper" << std::endl;
-    std::cout << "Effects: VP=Victory Points, Sh=Shields, C=Coins" << std::endl;
-    std::cout << std::string(70, '=') << std::endl;
-    const auto &pyramid = board.getPyramid();
+  std::cout << "\nPYRAMID LAYOUT (Age " << age << "):" << std::endl;
+  std::cout << "Legend: *=accessible, [Br]=Brown, [Gr]=Grey, [Bl]=Blue,"
+            << std::endl;
+  std::cout << "        [Gn]=Green, [Yl]=Yellow, [Rd]=Red, [Pu]=Purple"
+            << std::endl;
+  std::cout << "Resources: W=Wood, C=Clay, S=Stone, G=Glass, P=Paper"
+            << std::endl;
+  std::cout << "Effects: VP=Victory Points, Sh=Shields, C=Coins" << std::endl;
+  std::cout << std::string(70, '=') << std::endl;
+  const auto &pyramid = board.getPyramid();
 
   // Define pyramid structure based on age
   std::vector<int> rowSizes;
@@ -220,145 +248,174 @@ void ConsoleView::printPyramid(const Board &board, int age) {
   for (size_t row = 0; row < rowSizes.size(); ++row) {
     int rowSize = rowSizes[row];
 
-      std::cout << "Row " << (row + 1) << ": ";
-      for (int col = 0; col < rowSize; ++col) {
-          if (cardIndex >= static_cast<int>(pyramid.size()))
-              break;
+    std::cout << "Row " << (row + 1) << ": ";
+    for (int col = 0; col < rowSize; ++col) {
+      if (cardIndex >= static_cast<int>(pyramid.size()))
+        break;
 
-          const auto &slot = pyramid[cardIndex];
-          bool accessible = board.isCardAccessible(cardIndex);
-          bool isTaken = slot.isTaken;
+      const auto &slot = pyramid.at(cardIndex);
+      bool accessible = board.isCardAccessible(cardIndex);
+      bool isTaken = slot.isTaken;
 
-          // Accessibility marker
-          std::string marker = accessible ? "*" : " ";
-          if (isTaken) marker = "X";
+      // Accessibility marker
+      std::string marker = accessible ? "*" : " ";
+      if (isTaken)
+        marker = "X";
 
-          std::cout << "[" << marker << std::setw(2) << cardIndex << "]:";
-    // Calculate indentation (spaces to center the row)
-    // Approximate centering: (MaxRowSize - CurRowSize) * ItemWidth/2
-    // ItemWidth roughly 4-7 chars. Let's align with Game.cpp logic
-    //int indent = (6 - rowSize) * 7;
-    //std::cout << std::string(indent, ' ');
+      std::cout << "[" << marker << std::setw(2) << cardIndex << "]:";
+      // Calculate indentation (spaces to center the row)
+      // Approximate centering: (MaxRowSize - CurRowSize) * ItemWidth/2
+      // ItemWidth roughly 4-7 chars. Let's align with Game.cpp logic
+      // int indent = (6 - rowSize) * 7;
+      // std::cout << std::string(indent, ' ');
 
-    // Print cards in this row
-          if (isTaken) {
-              std::cout << "TAKEN     ";
-          } else if (!slot.isFaceUp) {
-              std::cout << "Face Down ";
-          } else {
-              // Show card brief info
-              std::string cardInfo = getCardShortInfo(slot.card);
-              std::cout << std::setw(25) << std::left << cardInfo << std::right;
-          }
-
-          cardIndex++;
+      // Print cards in this row
+      if (isTaken) {
+        std::cout << "TAKEN     ";
+      } else if (!slot.isFaceUp) {
+        std::cout << "Face Down ";
+      } else {
+        // Show card brief info
+        std::string cardInfo = getCardShortInfo(slot.card);
+        std::cout << std::setw(25) << std::left << cardInfo << std::right;
       }
-      std::cout << std::endl;
 
-      // Print card details row (only for face-up cards)
-      int rowStartIndex = cardIndex - rowSize;
-      std::cout << "       ";
-      for (int col = 0; col < rowSize; ++col) {
-          int currentIndex = rowStartIndex + col;
-          if (currentIndex >= static_cast<int>(pyramid.size()))
-              break;
-
-          const auto &slot = pyramid[currentIndex];
-
-          if (slot.isTaken || !slot.isFaceUp) {
-              std::cout << "                         "; // Placeholder
-          } else {
-              // Show effect details
-              const auto& effect = slot.card.getEffect();
-              std::string effectStr;
-
-              if (effect.victoryPoints > 0) {
-                  effectStr += "VP" + std::to_string(effect.victoryPoints) + " ";
-              }
-              if (effect.militaryShields > 0) {
-                  effectStr += "Sh" + std::to_string(effect.militaryShields) + " ";
-              }
-              if (effect.coins > 0) {
-                  effectStr += "+" + std::to_string(effect.coins) + "C ";
-              }
-
-              // Show resource production
-              if (!effect.resourcesProduced.empty()) {
-                  effectStr += "Prod:";
-                  for (const auto& [type, amount] : effect.resourcesProduced) {
-                      std::string resourceAbbr;
-                      switch (type) {
-                          case ResourceType::WOOD: resourceAbbr = "W"; break;
-                          case ResourceType::CLAY: resourceAbbr = "C"; break;
-                          case ResourceType::STONE: resourceAbbr = "S"; break;
-                          case ResourceType::GLASS: resourceAbbr = "G"; break;
-                          case ResourceType::PAPER: resourceAbbr = "P"; break;
-                          default: resourceAbbr = "?";
-                      }
-                      effectStr += std::to_string(amount) + resourceAbbr + " ";
-                  }
-              }
-
-              // Show science symbols
-              if (!effect.scienceSymbols.empty()) {
-                  effectStr += "Sci:";
-                  for (const auto& symbol : effect.scienceSymbols) {
-                      switch (symbol) {
-                          case ScienceSymbol::GLOBE: effectStr += "Gl"; break;
-                          case ScienceSymbol::TABLET: effectStr += "Tb"; break;
-                          case ScienceSymbol::GEAR: effectStr += "Ge"; break;
-                          case ScienceSymbol::COMPASS: effectStr += "Cm"; break;
-                          case ScienceSymbol::WHEEL: effectStr += "Wh"; break;
-                          case ScienceSymbol::MORTAR: effectStr += "Mr"; break;
-                          default: break;
-                      }
-                  }
-              }
-
-              // Truncate if too long
-              if (effectStr.length() > 22) {
-                  effectStr = effectStr.substr(0, 22) + "...";
-              }
-
-              std::cout << std::setw(24) << std::left << effectStr << std::right;
-          }
-      }
-      std::cout << std::endl << std::endl;
-  }
-
-    // Print taken cards list
-    std::cout << std::string(70, '-') << std::endl;
-    std::cout << "TAKEN CARDS: ";
-    bool hasTaken = false;
-    for (size_t i = 0; i < pyramid.size(); ++i) {
-        if (pyramid[i].isTaken) {
-            if (hasTaken) std::cout << ", ";
-            std::cout << "[" << i << "]" << pyramid[i].card.getName();
-            hasTaken = true;
-        }
+      cardIndex++;
     }
-    if (!hasTaken) std::cout << "None";
     std::cout << std::endl;
 
-    // Print accessible cards list
-    std::cout << "ACCESSIBLE CARDS: ";
-    bool hasAccessible = false;
-    for (size_t i = 0; i < pyramid.size(); ++i) {
-        if (board.isCardAccessible(i) && !pyramid[i].isTaken) {
-            if (hasAccessible) std::cout << ", ";
-            std::cout << "[" << i << "]";
-            if (pyramid[i].isFaceUp) {
-                std::cout << pyramid[i].card.getName() << "(" << getCostString(pyramid[i].card.getCost(), 12) << ")";
-            } else {
-                std::cout << "Face Down";
-            }
-            hasAccessible = true;
-        }
-    }
-    if (!hasAccessible) std::cout << "None";
-    std::cout << std::endl << std::string(70, '=') << std::endl;
-}
+    // Print card details row (only for face-up cards)
+    int rowStartIndex = cardIndex - rowSize;
+    std::cout << "       ";
+    for (int col = 0; col < rowSize; ++col) {
+      int currentIndex = rowStartIndex + col;
+      if (currentIndex >= static_cast<int>(pyramid.size()))
+        break;
 
+      const auto &slot = pyramid.at(currentIndex);
+
+      if (slot.isTaken || !slot.isFaceUp) {
+        std::cout << "                         "; // Placeholder
+      } else {
+        // Show effect details
+        const auto &effect = slot.card.getEffect();
+        std::string effectStr;
+
+        if (effect.victoryPoints > 0) {
+          effectStr += "VP" + std::to_string(effect.victoryPoints) + " ";
+        }
+        if (effect.militaryShields > 0) {
+          effectStr += "Sh" + std::to_string(effect.militaryShields) + " ";
+        }
+        if (effect.coins > 0) {
+          effectStr += "+" + std::to_string(effect.coins) + "C ";
+        }
+
+        // Show resource production
+        if (!effect.resourcesProduced.empty()) {
+          effectStr += "Prod:";
+          for (const auto &[type, amount] : effect.resourcesProduced) {
+            std::string resourceAbbr;
+            switch (type) {
+            case ResourceType::WOOD:
+              resourceAbbr = "W";
+              break;
+            case ResourceType::CLAY:
+              resourceAbbr = "C";
+              break;
+            case ResourceType::STONE:
+              resourceAbbr = "S";
+              break;
+            case ResourceType::GLASS:
+              resourceAbbr = "G";
+              break;
+            case ResourceType::PAPER:
+              resourceAbbr = "P";
+              break;
+            default:
+              resourceAbbr = "?";
+            }
+            effectStr += std::to_string(amount) + resourceAbbr + " ";
+          }
+        }
+
+        // Show science symbols
+        if (!effect.scienceSymbols.empty()) {
+          effectStr += "Sci:";
+          for (const auto &symbol : effect.scienceSymbols) {
+            switch (symbol) {
+            case ScienceSymbol::GLOBE:
+              effectStr += "Gl";
+              break;
+            case ScienceSymbol::TABLET:
+              effectStr += "Tb";
+              break;
+            case ScienceSymbol::GEAR:
+              effectStr += "Ge";
+              break;
+            case ScienceSymbol::COMPASS:
+              effectStr += "Cm";
+              break;
+            case ScienceSymbol::WHEEL:
+              effectStr += "Wh";
+              break;
+            case ScienceSymbol::MORTAR:
+              effectStr += "Mr";
+              break;
+            default:
+              break;
+            }
+          }
+        }
+
+        // Truncate if too long
+        if (effectStr.length() > 22) {
+          effectStr = effectStr.substr(0, 22) + "...";
+        }
+
+        std::cout << std::setw(24) << std::left << effectStr << std::right;
+      }
+    }
+    std::cout << std::endl << std::endl;
+  }
+
+  // Print taken cards list
+  std::cout << std::string(70, '-') << std::endl;
+  std::cout << "TAKEN CARDS: ";
+  bool hasTaken = false;
+  for (size_t i = 0; i < pyramid.size(); ++i) {
+    if (pyramid.at(i).isTaken) {
+      if (hasTaken)
+        std::cout << ", ";
+      std::cout << "[" << i << "]" << pyramid.at(i).card.getName();
+      hasTaken = true;
+    }
+  }
+  if (!hasTaken)
+    std::cout << "None";
+  std::cout << std::endl;
+
+  // Print accessible cards list
+  std::cout << "ACCESSIBLE CARDS: ";
+  bool hasAccessible = false;
+  for (size_t i = 0; i < pyramid.size(); ++i) {
+    if (board.isCardAccessible(i) && !pyramid.at(i).isTaken) {
+      if (hasAccessible)
+        std::cout << ", ";
+      std::cout << "[" << i << "]";
+      if (pyramid.at(i).isFaceUp) {
+        std::cout << pyramid.at(i).card.getName() << "("
+                  << getCostString(pyramid.at(i).card.getCost(), 12) << ")";
+      } else {
+        std::cout << "Face Down";
+      }
+      hasAccessible = true;
+    }
+  }
+  if (!hasAccessible)
+    std::cout << "None";
+  std::cout << std::endl << std::string(70, '=') << std::endl;
+}
 
 // 4. 玩家状态显示
 void ConsoleView::printPlayerStatus(const Player &player,
@@ -479,11 +536,11 @@ void ConsoleView::printAvailableCards(const Board &board) {
   bool hasAvailable = false;
 
   for (size_t i = 0; i < pyramid.size(); ++i) {
-    if (board.isCardAccessible(i) && !pyramid[i].isTaken) {
+    if (board.isCardAccessible(i) && !pyramid.at(i).isTaken) {
       hasAvailable = true;
       std::cout << "[" << i << "] ";
-      if (pyramid[i].isFaceUp) {
-        const Card &card = pyramid[i].card;
+      if (pyramid.at(i).isFaceUp) {
+        const Card &card = pyramid.at(i).card;
         std::cout << card.getName() << " (" << getCardTypeName(card.getType())
                   << ")";
 
@@ -813,8 +870,12 @@ void ConsoleView::notifyInvalidDecision() {
 void ConsoleView::notifyBuildSuccess(const std::string &playerName,
                                      const std::string &cardName, int cost,
                                      bool extraTurn) {
-  std::cout << playerName << " built: " << cardName << " (Paid " << cost
-            << " coins)" << std::endl;
+  std::cout << playerName << " built " << cardName << " for " << cost
+            << " coins.";
+  if (extraTurn) {
+    std::cout << " (Takes another turn)";
+  }
+  std::cout << std::endl;
 }
 
 void ConsoleView::notifyDiscard(const std::string &playerName,
@@ -825,10 +886,14 @@ void ConsoleView::notifyDiscard(const std::string &playerName,
 
 void ConsoleView::notifyWonderBuilt(const std::string &playerName,
                                     const std::string &wonderName,
-                                    const std::string &cardName,
+                                    const std::string &effectDesc,
                                     bool extraTurn) {
-  std::cout << playerName << " constructed wonder: " << wonderName
-            << " using card " << cardName << std::endl;
+  std::cout << "\n>>> " << playerName << " built wonder " << wonderName << "!";
+  if (extraTurn) {
+    std::cout << " (Takes another turn)";
+  }
+  std::cout << std::endl;
+  std::cout << "    Effect: " << effectDesc << std::endl;
 }
 
 void ConsoleView::notifyScientificVictory(const std::string &playerName) {

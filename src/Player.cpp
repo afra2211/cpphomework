@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <iostream>
 
-
 // === 构造函数 ===
 // [规则 P.6] PREPARATION - Step 5: "Each player takes 7 coins from the Bank."
 // 初始化玩家状态：7个金币，0军事，0分数
@@ -162,21 +161,72 @@ void Player::addProgressToken(const ProgressToken &token) {
   }
 }
 
+bool Player::hasProgressToken(ProgressTokenType type) const {
+  switch (type) {
+  case ProgressTokenType::AGRICULTURE:
+    return false; // Immediate
+  case ProgressTokenType::ARCHITECTURE:
+    return hasArchitecture;
+  case ProgressTokenType::ECONOMY:
+    return hasEconomy;
+  case ProgressTokenType::LAW:
+    return lawSymbolUnlocked;
+  case ProgressTokenType::MASONRY:
+    return hasMasonry;
+  case ProgressTokenType::MATHEMATICS:
+    return hasMathematics;
+  case ProgressTokenType::PHILOSOPHY:
+    return false; // Immediate
+  case ProgressTokenType::STRATEGY:
+    return hasStrategy;
+  case ProgressTokenType::THEOLOGY:
+    return hasTheology;
+  case ProgressTokenType::URBANISM:
+    return hasUrbanism;
+  default:
+    return false;
+  }
+}
+
 int Player::discardForCoins() {
   int coinsGained = 2 + yellowCardCount;
   addCoins(coinsGained);
   return coinsGained;
 }
 
+// Calculate ONLY the trade cost portion
+int Player::calculateTradeCost(int totalCost, const Cost &cost,
+                               const Player & /*opponent*/,
+                               std::string /*chainTarget*/, CardType /*type*/,
+                               bool /*isWonder*/) const {
+  // 简化版：基础资源2金币每个，灰色资源3金币每个
+  // 后续需要更复杂的逻辑，检查对手是否有资源，以及是否有商业卡牌优惠
+  // If chain target is valid, trade cost is 0
+  // The chain target check is now handled in calculateCost, so trade cost is
+  // only for resources.
+
+  // Total Cost = Card.coins + TradeCost.
+  // So TradeCost = TotalCost - Card.coins.
+  // However, calculateCost already did the heavy lifting.
+  // We can just rely on the fact that `calculateCost` returned `totalCost`.
+  // And `cost.coins` is the base coin cost.
+  // So TradeCost = totalCost - cost.coins.
+  // BUT checking for negative?
+  // `totalCost` should verify logic.
+  // Ideally, we can just use `totalCost - cost.coins`.
+
+  int tradeCost = totalCost - cost.coins;
+  return tradeCost > 0 ? tradeCost : 0;
+}
+
 // === 核心逻辑：计算建造成本 (包含交易规则) ===
 // LO02考点：复杂业务逻辑封装
+// LO02考点：复杂业务逻辑封装
 int Player::calculateCost(const Cost &cost, const Player &opponent,
-                          std::string chainTarget) const {
+                          std::string chainTarget, CardType type,
+                          bool isWonder) const {
 
   // 1. 检查免费建造链 (Chains)
-  // [规则 P.9] Free construction condition (chains)
-  // "If you have the Building containing this symbol... construct the new one
-  // for free."
   if (!chainTarget.empty()) {
     for (const auto &card : builtCards) {
       if (card.getChainSymbol() == chainTarget) {
@@ -187,41 +237,112 @@ int Player::calculateCost(const Cost &cost, const Player &opponent,
 
   int totalCoinsNeeded = cost.coins; // 部分卡牌本身需要金币成本
 
-  // 2. 遍历每一个需要的资源类型
-  for (auto const &[type, amountNeeded] : cost.resources) {
-    int producedBySelf = resources.count(type) ? resources.at(type) : 0;
+  // 2. Identify Missing Resources (Pass 1: Static Production)
+  std::map<ResourceType, int> missingResources;
+
+  // Logic for Architecture and Masonry: Discount resource REQUIREMENTS
+  int resourceDiscount = 0;
+  if (isWonder && hasArchitecture)
+    resourceDiscount = 2;
+  else if (type == CardType::CIVILIAN && hasMasonry)
+    resourceDiscount = 2;
+
+  int totalMissingCount = 0;
+
+  for (auto const &[resourceType, amountNeeded] : cost.resources) {
+    int producedBySelf =
+        resources.count(resourceType) ? resources.at(resourceType) : 0;
     int missing = std::max(0, amountNeeded - producedBySelf);
-
     if (missing > 0) {
-      // === 交易逻辑 (Trading Rules) ===
-      // [规则 P.8] Trading
-      // "COST = 2 + number of symbols..."
-      const TradeDiscount &discount = tradeDiscounts.at(type);
+      missingResources[resourceType] = missing;
+      totalMissingCount += missing;
+    }
+  }
 
-      // 默认单价：基础 2 + 对手棕/灰产量（黄牌与奇迹产量不计入）
-      int opponentProduction = 0;
-      if (!discount.priceToOne) {
-        const std::vector<Card> &oppCards = opponent.getBuiltCards();
-        for (const auto &oppCard : oppCards) {
-          CardType cType = oppCard.getType();
-          if (cType == CardType::RAW_MATERIAL ||
-              cType == CardType::MANUFACTURED_GOOD) {
-            const auto &prodMap = oppCard.getEffect().resourcesProduced;
-            auto it = prodMap.find(type);
-            if (it != prodMap.end()) {
-              opponentProduction += it->second;
-            }
+  // Apply discount to requirements (greedy removal of missing resources)
+  // We can remove up to 'resourceDiscount' resources from missingResources.
+  // Standard implementation: Remove the most expensive ones?
+  // But strictly speaking, trading costs vary.
+  // For simplicity and favor to player: remove resources that would cost the
+  // most to trade. BUT we haven't calculated trade cost yet.
+
+  // Let's first apply wonders (wildcards) then apply discount?
+  // Rules for Architecture: "Wonders cost 2 fewer resources."
+  // Usually this means you lower the cost requirement.
+  // Wildcards cover the cost.
+  // It is better to apply Discount FIRST (reducing need), then cover remaining
+  // with Wonders? Or Cover with Wonders then apply discount? If I have 1 Wood
+  // needed. Architecture gives -2 resources. I need 0. If I have 1 Wood needed.
+  // I have Great Lighthouse (Wood). If I use GL, I use valid resource. If I use
+  // Architecture, I save GL for another need? (Wait, GL is once per
+  // turn/construction?). Actually, Wonders produce specific things.
+  // Architecture reduces COUNT. It is always better to reduce count first, to
+  // save Wonder production? Or does it matter? The rule is "Cost 2 fewer
+  // resources". So we should reduce the `missingResources` count. Ideally, we
+  // remove the resources that are hardest to get? But trade costs are variable.
+  // Let's implement a simple greedy approach: Reduce the first found missing
+  // resources. Or better: Iterate and reduce.
+
+  while (resourceDiscount > 0 && !missingResources.empty()) {
+    // Find a resource to reduce
+    auto it = missingResources.begin();
+    it->second--;
+    resourceDiscount--;
+    if (it->second == 0) {
+      missingResources.erase(it);
+    }
+  }
+
+  // 3. Apply Wonders with Production Choice (Pass 2: Dynamic Production)
+  // iterate through wonders to cover deficits
+  for (const auto *wonder : builtWonders) {
+    if (!wonder || wonder->getEffect().productionChoice.empty())
+      continue;
+
+    const auto &choices = wonder->getEffect().productionChoice;
+    // Greedy match: if the wonder can produce something we are missing, use it.
+    // Since Great Lighthouse (Raw) and Piraeus (Goods) sets are disjoint, order
+    // doesn't matter much.
+    for (const auto &choiceType : choices) {
+      if (missingResources.count(choiceType) &&
+          missingResources[choiceType] > 0) {
+        missingResources[choiceType]--;
+        if (missingResources[choiceType] == 0) {
+          missingResources.erase(choiceType); // Fully covered
+        }
+        break; // This wonder used up its 1 production capacity
+      }
+    }
+  }
+
+  // 4. Calculate Trade Cost for Remaining Deficits (Pass 3)
+  for (auto const &[type, missingAmount] : missingResources) {
+    // === 交易逻辑 (Trading Rules) ===
+    const TradeDiscount &discount = tradeDiscounts.at(type);
+
+    // 默认单价：基础 2 + 对手棕/灰产量（黄牌与奇迹产量不计入）
+    int opponentProduction = 0;
+    if (!discount.priceToOne) {
+      const std::vector<Card> &oppCards = opponent.getBuiltCards();
+      for (const auto &oppCard : oppCards) {
+        CardType cType = oppCard.getType();
+        if (cType == CardType::RAW_MATERIAL ||
+            cType == CardType::MANUFACTURED_GOOD) {
+          const auto &prodMap = oppCard.getEffect().resourcesProduced;
+          auto it = prodMap.find(type);
+          if (it != prodMap.end()) {
+            opponentProduction += it->second;
           }
         }
       }
-
-      int pricePerUnit = discount.priceToOne ? 1 : 2 + opponentProduction;
-      if (!discount.priceToOne && discount.coinDiscount > 0) {
-        pricePerUnit = std::max(0, pricePerUnit - discount.coinDiscount);
-      }
-
-      totalCoinsNeeded += missing * pricePerUnit;
     }
+
+    int pricePerUnit = discount.priceToOne ? 1 : 2 + opponentProduction;
+    if (!discount.priceToOne && discount.coinDiscount > 0) {
+      pricePerUnit = std::max(0, pricePerUnit - discount.coinDiscount);
+    }
+
+    totalCoinsNeeded += missingAmount * pricePerUnit;
   }
 
   return totalCoinsNeeded;
@@ -229,8 +350,9 @@ int Player::calculateCost(const Cost &cost, const Player &opponent,
 
 // 检查是否买得起
 bool Player::canAfford(const Cost &cost, const Player &opponent,
-                       std::string chainTarget) const {
-  return coins >= calculateCost(cost, opponent, chainTarget);
+                       std::string chainTarget, CardType type,
+                       bool isWonder) const {
+  return coins >= calculateCost(cost, opponent, chainTarget, type, isWonder);
 }
 
 // 支付成本
@@ -254,7 +376,11 @@ void Player::buildCard(const Card &card) {
   addVictoryPoints(effect.victoryPoints);
 
   // [规则 P.12] Military (统计盾牌)
-  addMilitaryPower(effect.militaryShields);
+  int shields = effect.militaryShields;
+  if (card.getType() == CardType::MILITARY && hasStrategy) {
+    shields++;
+  }
+  addMilitaryPower(shields);
 
   // [规则 P.4] Coins (部分卡牌给予即时金币)
   addCoins(effect.coins);
@@ -271,11 +397,21 @@ void Player::buildCard(const Card &card) {
   for (const auto &symbol : effect.scienceSymbols) {
     addScienceSymbol(symbol);
   }
+
+  // 5. Apply Trade Discounts (Commercial Cards)
+  for (const auto &[resource, discount] : effect.tradeDiscounts) {
+    tradeDiscounts[resource] = discount;
+  }
 }
 
 Effect Player::buildWonder(Wonder &wonder) {
   // [规则 P.11] Construct a Wonder
   Effect effect = wonder.build();
+
+  if (hasTheology) {
+    effect.playAgain = true;
+  }
+
   builtWonders.push_back(&wonder);
   return effect;
 }

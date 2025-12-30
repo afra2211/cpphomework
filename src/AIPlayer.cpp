@@ -32,7 +32,7 @@ Decision AIPlayer::makeDecision(const Game &game) {
 
   std::vector<int> accessibleIndices;
   for (size_t i = 0; i < pyramid.size(); ++i) {
-    if (board.isCardAccessible(i) && !pyramid[i].isTaken) {
+    if (board.isCardAccessible(i) && !pyramid.at(i).isTaken) {
       accessibleIndices.push_back(static_cast<int>(i));
     }
   }
@@ -77,7 +77,7 @@ Decision AIPlayer::makeDecision(const Game &game) {
   int bestCardIndex = -1;
   int bestCardScore = std::numeric_limits<int>::min();
   for (int cardIndex : accessibleIndices) {
-    const Card &card = pyramid[cardIndex].card;
+    const Card &card = pyramid.at(cardIndex).card;
     if (canAfford(card.getCost(), opponent)) {
       int score = evaluateCard(card);
       // ConsoleView::printInfo("  评估卡牌 [" + std::to_string(cardIndex) + "]:

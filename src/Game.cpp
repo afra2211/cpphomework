@@ -1088,8 +1088,28 @@ int Game::calculateGuildVictoryPoints(const Player &player,
 
 void Game::handleSeventhWonderBuilt() {
   if (builtWonderCount >= 7 && !eighthWonderRemoved) {
+    // 1. Remove from Board's available list (logical removal)
     board.removeFirstUnbuiltWonder();
+
+    // 2. Remove from Player lists (UI/Selection removal)
+    // We need to find which player holds the unbuilt wonder and remove it.
+    auto removeUnbuilt = [](std::vector<Wonder *> &wonders) {
+      for (auto it = wonders.begin(); it != wonders.end(); ++it) {
+        if (*it != nullptr && !(*it)->isBuilt()) {
+          wonders.erase(it);
+          return true; // Found and removed
+        }
+      }
+      return false;
+    };
+
+    if (!removeUnbuilt(player1Wonders)) {
+      removeUnbuilt(player2Wonders);
+    }
+
     eighthWonderRemoved = true;
+    ConsoleView::printPlain(">>> The 7th Wonder has been built! The 8th Wonder "
+                            "is immediately removed from the game. <<<");
   }
 }
 // Helper to interactively choose a card from discard

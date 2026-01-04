@@ -34,6 +34,7 @@ std::vector<Card> Deck::getAge2Deck(bool shuffle, std::vector<Card> *removed) {
   return deck;
 }
 
+// 确保抽取公会牌时是随机抽取
 std::vector<Card> Deck::getAge3Deck(bool shuffle, std::vector<Card> *removed) {
   auto deck = CardFactory::getInstance().createAge3Deck();
   if (shuffle)
@@ -41,7 +42,10 @@ std::vector<Card> Deck::getAge3Deck(bool shuffle, std::vector<Card> *removed) {
   removeThreeRandom(deck, removed);
 
   auto guilds = CardFactory::getInstance().createGuildCards();
-  shuffleDeck(guilds);
+  // Ensure random shuffle with time-based seed
+  static std::mt19937 rng(static_cast<unsigned>(
+      std::chrono::system_clock::now().time_since_epoch().count()));
+  std::shuffle(guilds.begin(), guilds.end(), rng);
   for (int i = 0; i < 3 && i < static_cast<int>(guilds.size()); ++i) {
     deck.push_back(guilds[i]);
   }

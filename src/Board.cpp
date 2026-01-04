@@ -602,33 +602,49 @@ void Board::setupAge3(std::vector<Card> &deck) {
   pyramid.clear();
   int cardIdx = 0;
 
-  // Age 3 shape: similar to Age 1 but more cards? Spec says 20 cards.
-  // Using the pattern from Age 1 (regular pyramid).
+  // Age 3 "Snake" or "Ring" Layout
+  // Structure (Rows 1 to 7): 2 - 3 - 4 - 2 - 4 - 3 - 2
+  // Card Index Distribution:
+  // Row 1 (Top): 0, 1
+  // Row 2: 2, 3, 4
+  // Row 3: 5, 6, 7, 8
+  // Row 4: 9, 10
+  // Row 5: 11, 12, 13, 14
+  // Row 6: 15, 16, 17
+  // Row 7 (Bottom): 18, 19
 
-  // Row 1 (2 cards) 0-1
+  // Row 1 (Top, 2 cards, Face Up) - Indices 0-1
   addSlot(pyramid, 0, deck[cardIdx++], true, {2, 3});
   addSlot(pyramid, 1, deck[cardIdx++], true, {3, 4});
 
-  // Row 2 (3 cards) 2-4
+  // Row 2 (3 cards, Face Down) - Indices 2-4
   addSlot(pyramid, 2, deck[cardIdx++], false, {5, 6});
   addSlot(pyramid, 3, deck[cardIdx++], false, {6, 7});
   addSlot(pyramid, 4, deck[cardIdx++], false, {7, 8});
 
-  // Row 3 (4 cards) 5-8
-  addSlot(pyramid, 5, deck[cardIdx++], true, {9, 10});
-  addSlot(pyramid, 6, deck[cardIdx++], true, {10, 11});
-  addSlot(pyramid, 7, deck[cardIdx++], true, {11, 12});
-  addSlot(pyramid, 8, deck[cardIdx++], true, {12, 13});
+  // Row 3 (4 cards, Face Up) - Indices 5-8
+  addSlot(pyramid, 5, deck[cardIdx++], true, {9});
+  addSlot(pyramid, 6, deck[cardIdx++], true, {9});
+  addSlot(pyramid, 7, deck[cardIdx++], true, {10});
+  addSlot(pyramid, 8, deck[cardIdx++], true, {10});
 
-  // Row 4 (5 cards) 9-13
-  addSlot(pyramid, 9, deck[cardIdx++], false, {14, 15});
-  addSlot(pyramid, 10, deck[cardIdx++], false, {15, 16});
-  addSlot(pyramid, 11, deck[cardIdx++], false, {16, 17});
-  addSlot(pyramid, 12, deck[cardIdx++], false, {17, 18});
-  addSlot(pyramid, 13, deck[cardIdx++], false, {18, 19});
+  // Row 4 (2 cards, Face Down) - Indices 9-10
+  addSlot(pyramid, 9, deck[cardIdx++], false, {11, 12});
+  addSlot(pyramid, 10, deck[cardIdx++], false, {13, 14});
 
-  // Row 5 (6 cards) 14-19
-  for (int i = 14; i <= 19; ++i) {
-    addSlot(pyramid, i, deck[cardIdx++], true, {});
-  }
+  // Row 5 (4 cards, Face Up) - Indices 11-14
+  addSlot(pyramid, 11, deck[cardIdx++], true, {15});
+  addSlot(pyramid, 12, deck[cardIdx++], true, {15, 16});
+  addSlot(pyramid, 13, deck[cardIdx++], true, {16, 17});
+  addSlot(pyramid, 14, deck[cardIdx++], true, {17});
+
+  // Row 6 (3 cards, Face Down) - Indices 15-17
+  addSlot(pyramid, 15, deck[cardIdx++], false, {18});
+  addSlot(pyramid, 16, deck[cardIdx++], false, {18, 19});
+  addSlot(pyramid, 17, deck[cardIdx++], false, {19});
+
+  // Row 7 (Bottom, 2 cards, Face Up) - Indices 18-19
+  // Bottom cards are accessible immediately (coveredBy = {})
+  addSlot(pyramid, 18, deck[cardIdx++], true, {});
+  addSlot(pyramid, 19, deck[cardIdx++], true, {});
 }

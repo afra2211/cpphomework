@@ -48,17 +48,6 @@ void Game::init(std::string p1Name, bool p1IsAI, std::string p2Name,
   board.moveMilitary(Board::MILITARY_START_POSITION -
                      board.getMilitaryPosition());
 
-  // Military Victory Setup
-  // Scientific Victory Setup
-  p1->addScienceSymbol(ScienceSymbol::GLOBE);
-  p1->addScienceSymbol(ScienceSymbol::TABLET);
-  p1->addScienceSymbol(ScienceSymbol::GEAR);
-  p1->addScienceSymbol(ScienceSymbol::COMPASS);
-  p1->addScienceSymbol(ScienceSymbol::WHEEL);
-  // Just need 1 more for victory (MORTAR)
-  // p1->addCoins(50);
-  // p2->addCoins(50);
-
   setupWonders();
 }
 
@@ -809,6 +798,27 @@ void Game::handleMilitaryConflict() {
   }
 }
 
+static std::string getScienceSymbolName(ScienceSymbol s) {
+  switch (s) {
+  case ScienceSymbol::GLOBE:
+    return "Globe";
+  case ScienceSymbol::TABLET:
+    return "Tablet";
+  case ScienceSymbol::GEAR:
+    return "Gear";
+  case ScienceSymbol::COMPASS:
+    return "Compass";
+  case ScienceSymbol::WHEEL:
+    return "Wheel";
+  case ScienceSymbol::MORTAR:
+    return "Mortar";
+  case ScienceSymbol::NONE:
+    return "None";
+  default:
+    return "Unknown";
+  }
+}
+
 void Game::applyWonderEffect(const Effect &effect, Player *owner,
                              Player *opponent) {
   if (!owner) {
@@ -857,77 +867,76 @@ void Game::applyWonderEffect(const Effect &effect, Player *owner,
     ConsoleView::printPlain("Theology Effect: " + owner->getName() +
                             " gets an extra turn from building a Wonder!");
   }
-}
 
-if (effect.buildFromDiscard && !discardPile.empty()) {
-  // Mausoleum: Allow player to choose from discard pile
-  if (owner->isAIPlayer()) {
-    // AI simplified logic: Pick the last one (simplest) or highest VP
-    Card cardToBuild = discardPile.back();
-    // Ideally AI should evaluate, but for now simple fallback
-    // We need to find the card in discardPile and remove it
-    // The original logic just popped back, which assumes taking the top.
-    // But for Mausoleum, you fetch the whole pile.
-    // Let's stick to simple "take last" for AI for now.
-    discardPile.pop_back();
-    owner->buildCard(cardToBuild);
-  } else {
-    // Human: Show UI
-    Card chosenCard = chooseCardFromDiscard(owner);
-    // chooseCardFromDiscard manages removing from discardPile inside
-    owner->buildCard(chosenCard);
-  }
-}
-
-if (effect.opponentCoinsLoss > 0 && opponent) {
-  int loss = effect.opponentCoinsLoss;
-  int removed = opponent->getCoins() < loss ? opponent->getCoins() : loss;
-  opponent->removeCoins(removed);
-  ConsoleView::printPlain(opponent->getName() + " lost " +
-                          std::to_string(removed) +
-                          " coins due to wonder effect.");
-}
-
-if (effect.gainProgressToken) {
-  const auto &tokens = board.getAvailableProgressTokens();
-
-  // Check for Great Library "box" effect first
-  if (effect.gainProgressTokenFromBox) {
+  if (effect.buildFromDiscard && !discardPile.empty()) {
+    // Mausoleum: Allow player to choose from discard pile
     if (owner->isAIPlayer()) {
-      // AI: Pick random if available
-      const auto &removed = board.getRemovedProgressTokens();
-      if (!removed.empty()) {
-        ProgressToken t = board.takeRemovedProgressToken(0);
-        owner->addProgressToken(t);
+      // AI simplified logic: Pick the last one (simplest) or highest VP
+      Card cardToBuild = discardPile.back();
+      // Ideally AI should evaluate, but for now simple fallback
+      // We need to find the card in discardPile and remove it
+      // The original logic just popped back, which assumes taking the top.
+      // But for Mausoleum, you fetch the whole pile.
+      // Let's stick to simple "take last" for AI for now.
+      discardPile.pop_back();
+      owner->buildCard(cardToBuild);
+    } else {
+      // Human: Show UI
+      Card chosenCard = chooseCardFromDiscard(owner);
+      // chooseCardFromDiscard manages removing from discardPile inside
+      owner->buildCard(chosenCard);
+    }
+  }
+
+  if (effect.opponentCoinsLoss > 0 && opponent) {
+    int loss = effect.opponentCoinsLoss;
+    int removed = opponent->getCoins() < loss ? opponent->getCoins() : loss;
+    opponent->removeCoins(removed);
+    ConsoleView::printPlain(opponent->getName() + " lost " +
+                            std::to_string(removed) +
+                            " coins due to wonder effect.");
+  }
+
+  if (effect.gainProgressToken) {
+    const auto &tokens = board.getAvailableProgressTokens();
+
+    // Check for Great Library "box" effect first
+    if (effect.gainProgressTokenFromBox) {
+      if (owner->isAIPlayer()) {
+        // AI: Pick random if available
+        const auto &removed = board.getRemovedProgressTokens();
+        if (!removed.empty()) {
+          ProgressToken t = board.takeRemovedProgressToken(0);
+          owner->addProgressToken(t);
+        }
+      } else {
+        // Human: Pick from box
+        ProgressToken t = chooseProgressTokenFromBox(owner);
+        // Logic inside checks valid token
+        if (t.getType() != ProgressTokenType::AGRICULTURE ||
+            t.getDescription() != "None") { // check valid
+          owner->addProgressToken(t);
+        }
       }
     } else {
-      // Human: Pick from box
-      ProgressToken t = chooseProgressTokenFromBox(owner);
-      // Logic inside checks valid token
-      if (t.getType() != ProgressTokenType::AGRICULTURE ||
-          t.getDescription() != "None") { // check valid
-        owner->addProgressToken(t);
+      // Law Token or similar (pick from board)
+      if (!tokens.empty()) {
+        // Should be interactive ideally, but existing logic was auto-take
+        // first. Let's keep it simple or make it interactive if we want. For
+        // now, existing logic was "take 0".
+        // TODO: If this is "Law", it should be interactive.
+        // But let's verify if gainProgressToken is used for Law.
+        // Update: We are implementing Great Library now.
+        ProgressToken token = board.takeProgressToken(0);
+        owner->addProgressToken(token);
       }
     }
-  } else {
-    // Law Token or similar (pick from board)
-    if (!tokens.empty()) {
-      // Should be interactive ideally, but existing logic was auto-take
-      // first. Let's keep it simple or make it interactive if we want. For
-      // now, existing logic was "take 0".
-      // TODO: If this is "Law", it should be interactive.
-      // But let's verify if gainProgressToken is used for Law.
-      // Update: We are implementing Great Library now.
-      ProgressToken token = board.takeProgressToken(0);
-      owner->addProgressToken(token);
-    }
   }
-}
 
-builtWonderCount++;
-if (effect.playAgain) {
-  extraTurnPending = true;
-}
+  builtWonderCount++;
+  if (effect.playAgain) {
+    extraTurnPending = true;
+  }
 }
 
 bool Game::isPyramidEmpty() const {

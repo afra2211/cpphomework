@@ -221,6 +221,36 @@ void ConsoleView::printBoard(const Game &game) {
   std::cout << "========================\n" << std::endl;
 }
 
+// 3. 金字塔布局显示（核心功能）
+static void printSingleCardSlot(const Board &board,
+                                const std::map<int, CardSlot> &pyramid,
+                                int cardIndex) {
+  if (pyramid.find(cardIndex) == pyramid.end()) {
+    return;
+  }
+  const auto &slot = pyramid.at(cardIndex);
+  bool accessible = board.isCardAccessible(cardIndex);
+  bool isTaken = slot.isTaken;
+
+  // Accessibility marker
+  std::string marker = accessible ? "*" : " ";
+  if (isTaken)
+    marker = "X";
+
+  std::cout << "[" << marker << std::setw(2) << cardIndex << "]:";
+
+  // Print cards in this row
+  if (isTaken) {
+    std::cout << "TAKEN     ";
+  } else if (!slot.isFaceUp) {
+    std::cout << "Face Down ";
+  } else {
+    // Show card brief info
+    std::string cardInfo = getCardShortInfo(slot.card);
+    std::cout << std::setw(25) << std::left << cardInfo << std::right;
+  }
+}
+
 // 3. 金字塔布局显示（核心功能） - Updated to support Age 2 inversion
 void ConsoleView::printPyramid(const Board &board, int age) {
   std::cout << "\nPYRAMID LAYOUT (Age " << age << "):" << std::endl;
@@ -236,148 +266,73 @@ void ConsoleView::printPyramid(const Board &board, int age) {
 
   // Define pyramid structure based on age
   std::vector<int> rowSizes;
-  if (age == 1 || age == 3) {
-    // Age 1/3: Top to bottom - 2, 3, 4, 5, 6 cards
-    rowSizes = {2, 3, 4, 5, 6};
-  } else {
-    // Age 2: Inverted pyramid - 6, 5, 4, 3, 2 cards
-    rowSizes = {6, 5, 4, 3, 2};
+  if (age == 1) {
+    rowSizes = {2, 3, 4, 5, 6}; // Age 1: Standard
+  } else if (age == 2) {
+    rowSizes = {6, 5, 4, 3, 2}; // Age 2: Inverted
+  } else if (age == 3) {
+    // Age 3: Special Split/Merge Layout
+    // Row 1-7: 2, 3, 4, 2, 4, 3, 2
+    rowSizes = {2, 3, 4, 2, 4, 3, 2};
   }
 
   int cardIndex = 0;
   for (size_t row = 0; row < rowSizes.size(); ++row) {
     int rowSize = rowSizes[row];
-
     std::cout << "Row " << (row + 1) << ": ";
-    for (int col = 0; col < rowSize; ++col) {
-      if (cardIndex >= static_cast<int>(pyramid.size()))
-        break;
 
-      const auto &slot = pyramid.at(cardIndex);
-      bool accessible = board.isCardAccessible(cardIndex);
-      bool isTaken = slot.isTaken;
-
-      // Accessibility marker
-      std::string marker = accessible ? "*" : " ";
-      if (isTaken)
-        marker = "X";
-
-      std::cout << "[" << marker << std::setw(2) << cardIndex << "]:";
-      // Calculate indentation (spaces to center the row)
-      // Approximate centering: (MaxRowSize - CurRowSize) * ItemWidth/2
-      // ItemWidth roughly 4-7 chars. Let's align with Game.cpp logic
-      // int indent = (6 - rowSize) * 7;
-      // std::cout << std::string(indent, ' ');
-
-      // Print cards in this row
-      if (isTaken) {
-        std::cout << "TAKEN     ";
-      } else if (!slot.isFaceUp) {
-        std::cout << "Face Down ";
+    if (age == 3) {
+      if (row == 2) { // Row 3: 4 cards split (2 -- 2)
+        for (int col = 0; col < rowSize; ++col) {
+          if (cardIndex < static_cast<int>(pyramid.size()))
+            printSingleCardSlot(board, pyramid, cardIndex++);
+          if (col == 1)
+            std::cout << "          "; // Gap between groups
+        }
+      } else if (row == 3) { // Row 4: 2 cards split (1 -- 1)
+        for (int col = 0; col < rowSize; ++col) {
+          if (col == 0)
+            std::cout << "     ";
+          if (cardIndex < static_cast<int>(pyramid.size()))
+            printSingleCardSlot(board, pyramid, cardIndex++);
+          if (col == 0)
+            std::cout << "                    "; // Wide gap
+        }
+      } else if (row == 4) { // Row 5: 4 cards split (2 -- 2)
+        for (int col = 0; col < rowSize; ++col) {
+          if (cardIndex < static_cast<int>(pyramid.size()))
+            printSingleCardSlot(board, pyramid, cardIndex++);
+          if (col == 1)
+            std::cout << "          "; // Gap between groups
+        }
       } else {
-        // Show card brief info
-        std::string cardInfo = getCardShortInfo(slot.card);
-        std::cout << std::setw(25) << std::left << cardInfo << std::right;
-      }
+        // Standard centering
+        int spaces = (6 - rowSize) * 4;
+        if (spaces > 0)
+          std::cout << std::string(spaces, ' ');
 
-      cardIndex++;
+        for (int col = 0; col < rowSize; ++col) {
+          if (cardIndex < static_cast<int>(pyramid.size())) {
+            printSingleCardSlot(board, pyramid, cardIndex++);
+          }
+        }
+      }
+    } else {
+      // Ages 1 & 2
+      int maxRow = 6;
+      int spaces = (maxRow - rowSize) * 4;
+      if (spaces > 0)
+        std::cout << std::string(spaces, ' ');
+
+      for (int col = 0; col < rowSize; ++col) {
+        if (cardIndex < static_cast<int>(pyramid.size())) {
+          printSingleCardSlot(board, pyramid, cardIndex++);
+        }
+      }
     }
     std::cout << std::endl;
-
-    // Print card details row (only for face-up cards)
-    int rowStartIndex = cardIndex - rowSize;
-    std::cout << "       ";
-    for (int col = 0; col < rowSize; ++col) {
-      int currentIndex = rowStartIndex + col;
-      if (currentIndex >= static_cast<int>(pyramid.size()))
-        break;
-
-      const auto &slot = pyramid.at(currentIndex);
-
-      if (slot.isTaken || !slot.isFaceUp) {
-        std::cout << "                         "; // Placeholder
-      } else {
-        // Show effect details
-        const auto &effect = slot.card.getEffect();
-        std::string effectStr;
-
-        if (effect.victoryPoints > 0) {
-          effectStr += "VP" + std::to_string(effect.victoryPoints) + " ";
-        }
-        if (effect.militaryShields > 0) {
-          effectStr += "Sh" + std::to_string(effect.militaryShields) + " ";
-        }
-        if (effect.coins > 0) {
-          effectStr += "+" + std::to_string(effect.coins) + "C ";
-        }
-
-        // Show resource production
-        if (!effect.resourcesProduced.empty()) {
-          effectStr += "Prod:";
-          for (const auto &[type, amount] : effect.resourcesProduced) {
-            std::string resourceAbbr;
-            switch (type) {
-            case ResourceType::WOOD:
-              resourceAbbr = "W";
-              break;
-            case ResourceType::CLAY:
-              resourceAbbr = "C";
-              break;
-            case ResourceType::STONE:
-              resourceAbbr = "S";
-              break;
-            case ResourceType::GLASS:
-              resourceAbbr = "G";
-              break;
-            case ResourceType::PAPER:
-              resourceAbbr = "P";
-              break;
-            default:
-              resourceAbbr = "?";
-            }
-            effectStr += std::to_string(amount) + resourceAbbr + " ";
-          }
-        }
-
-        // Show science symbols
-        if (!effect.scienceSymbols.empty()) {
-          effectStr += "Sci:";
-          for (const auto &symbol : effect.scienceSymbols) {
-            switch (symbol) {
-            case ScienceSymbol::GLOBE:
-              effectStr += "Gl";
-              break;
-            case ScienceSymbol::TABLET:
-              effectStr += "Tb";
-              break;
-            case ScienceSymbol::GEAR:
-              effectStr += "Ge";
-              break;
-            case ScienceSymbol::COMPASS:
-              effectStr += "Cm";
-              break;
-            case ScienceSymbol::WHEEL:
-              effectStr += "Wh";
-              break;
-            case ScienceSymbol::MORTAR:
-              effectStr += "Mr";
-              break;
-            default:
-              break;
-            }
-          }
-        }
-
-        // Truncate if too long
-        if (effectStr.length() > 22) {
-          effectStr = effectStr.substr(0, 22) + "...";
-        }
-
-        std::cout << std::setw(24) << std::left << effectStr << std::right;
-      }
-    }
-    std::cout << std::endl << std::endl;
   }
+  std::cout << std::endl;
 
   // Print taken cards list
   std::cout << std::string(70, '-') << std::endl;

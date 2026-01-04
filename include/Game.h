@@ -97,6 +97,7 @@ private:
   int calculateMilitaryVictoryPoints(bool isPlayerOne) const;
   Card chooseCardFromDiscard(Player *player);
   ProgressToken chooseProgressTokenFromBox(Player *player);
+  void handleSciencePairReward(Player *player);
   // Helper to get input (from console or AI)
   // void processPlayerMove(Player &player); // Removed
 };

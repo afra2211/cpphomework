@@ -979,3 +979,33 @@ void ConsoleView::printPlayerWonderCollection(
   }
   std::cout << "========================================\n" << std::endl;
 }
+
+// === Progress Token Helpers ===
+void ConsoleView::printProgressTokens(
+    const std::vector<ProgressToken> &tokens) {
+  std::cout << "\n=== AVAILABLE PROGRESS TOKENS ===" << std::endl;
+  for (size_t i = 0; i < tokens.size(); ++i) {
+    std::cout << i << ". " << tokens[i].getDescription()
+              << " (Base VP: " << tokens[i].getBaseVictoryPoints() << ")"
+              << std::endl;
+  }
+  std::cout << "=================================\n" << std::endl;
+}
+
+int ConsoleView::promptProgressTokenSelection(
+    const std::vector<ProgressToken> &tokens) {
+  printProgressTokens(tokens);
+  int choice = -1;
+  while (true) {
+    std::cout << "Select a Progress Token (0-" << tokens.size() - 1 << "): ";
+    if (std::cin >> choice) {
+      if (choice >= 0 && choice < (int)tokens.size()) {
+        break;
+      }
+    } else {
+      std::cin.clear();
+      std::cin.ignore(10000, '\n');
+    }
+  }
+  return choice;
+}

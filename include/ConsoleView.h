@@ -11,6 +11,7 @@ class Board;
 class Player;
 class Card;
 class Wonder;
+class ProgressToken;
 
 class ConsoleView {
 public:
@@ -60,6 +61,11 @@ public:
   static void
   printPlayerWonderCollection(const Player &player,
                               const std::vector<class Wonder *> &wonders);
+
+  // === Progress Token Helpers ===
+  static void printProgressTokens(const std::vector<ProgressToken> &tokens);
+  static int
+  promptProgressTokenSelection(const std::vector<ProgressToken> &tokens);
 
   // === Input Methods ===
   static std::string getLineInput();

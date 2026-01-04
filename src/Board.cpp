@@ -145,6 +145,8 @@ void Board::moveMilitary(int amount, Player *mover, Player *opponent) {
     if (crossed) {
       if (opponent && token.coinPenalty > 0) {
         opponent->removeCoins(token.coinPenalty);
+        std::cout << ">>> MILITARY EFFECT: " << opponent->getName() << " drops "
+                  << token.coinPenalty << " coins!" << std::endl;
       }
       if (mover && token.victoryPoints > 0) {
         mover->addVictoryPoints(token.victoryPoints);
@@ -317,17 +319,8 @@ bool Board::onSciencePair(Player &player) {
   // 使用玩家自身的符号计数检查配对情况
   const auto counts = player.getScienceSymbolCounts();
 
-  for (const auto &[symbol, count] : counts) {
-    if (symbol == ScienceSymbol::NONE) {
-      continue;
-    }
-    if (count >= 2 && !player.hasClaimedSciencePair(symbol) &&
-        !availableProgressTokens.empty()) {
-      ProgressToken token = takeProgressToken(0);
-      player.addProgressToken(token);
-      player.markSciencePairClaimed(symbol);
-    }
-  }
+  // No auto-claim here. Game logic handles interactive claiming.
+  // We just proceed to check for victory.
 
   int uniqueSymbols = 0;
   for (const auto &[symbol, count] : counts) {

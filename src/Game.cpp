@@ -582,6 +582,7 @@ void Game::playTurn() {
         }
       }
 
+      handleSciencePairReward(currentPlayer);
       if (board.onSciencePair(*currentPlayer)) {
         ConsoleView::notifyScientificVictory(currentPlayer->getName());
         gameOver = true;
@@ -650,6 +651,7 @@ void Game::playTurn() {
                                        targetWonder->getName(), card.getName(),
                                        grantExtraTurn);
 
+        handleSciencePairReward(currentPlayer);
         if (board.onSciencePair(*currentPlayer)) {
           ConsoleView::notifyScientificVictory(currentPlayer->getName());
           gameOver = true;
@@ -849,75 +851,83 @@ void Game::applyWonderEffect(const Effect &effect, Player *owner,
     opponent->removeBuiltCardByType(CardType::MANUFACTURED_GOOD);
   }
 
-  if (effect.buildFromDiscard && !discardPile.empty()) {
-    // Mausoleum: Allow player to choose from discard pile
-    if (owner->isAIPlayer()) {
-      // AI simplified logic: Pick the last one (simplest) or highest VP
-      Card cardToBuild = discardPile.back();
-      // Ideally AI should evaluate, but for now simple fallback
-      // We need to find the card in discardPile and remove it
-      // The original logic just popped back, which assumes taking the top.
-      // But for Mausoleum, you fetch the whole pile.
-      // Let's stick to simple "take last" for AI for now.
-      discardPile.pop_back();
-      owner->buildCard(cardToBuild);
-    } else {
-      // Human: Show UI
-      Card chosenCard = chooseCardFromDiscard(owner);
-      // chooseCardFromDiscard manages removing from discardPile inside
-      owner->buildCard(chosenCard);
-    }
-  }
-
-  if (effect.opponentCoinsLoss > 0 && opponent) {
-    int loss = effect.opponentCoinsLoss;
-    int removed = opponent->getCoins() < loss ? opponent->getCoins() : loss;
-    opponent->removeCoins(removed);
-    ConsoleView::printPlain(opponent->getName() + " lost " +
-                            std::to_string(removed) +
-                            " coins due to wonder effect.");
-  }
-
-  if (effect.gainProgressToken) {
-    const auto &tokens = board.getAvailableProgressTokens();
-
-    // Check for Great Library "box" effect first
-    if (effect.gainProgressTokenFromBox) {
-      if (owner->isAIPlayer()) {
-        // AI: Pick random if available
-        const auto &removed = board.getRemovedProgressTokens();
-        if (!removed.empty()) {
-          ProgressToken t = board.takeRemovedProgressToken(0);
-          owner->addProgressToken(t);
-        }
-      } else {
-        // Human: Pick from box
-        ProgressToken t = chooseProgressTokenFromBox(owner);
-        // Logic inside checks valid token
-        if (t.getType() != ProgressTokenType::AGRICULTURE ||
-            t.getDescription() != "None") { // check valid
-          owner->addProgressToken(t);
-        }
-      }
-    } else {
-      // Law Token or similar (pick from board)
-      if (!tokens.empty()) {
-        // Should be interactive ideally, but existing logic was auto-take
-        // first. Let's keep it simple or make it interactive if we want. For
-        // now, existing logic was "take 0".
-        // TODO: If this is "Law", it should be interactive.
-        // But let's verify if gainProgressToken is used for Law.
-        // Update: We are implementing Great Library now.
-        ProgressToken token = board.takeProgressToken(0);
-        owner->addProgressToken(token);
-      }
-    }
-  }
-
-  builtWonderCount++;
-  if (effect.playAgain) {
+  // Theology Effect: Wonders grant "Play Again"
+  if (owner->hasProgressToken(ProgressTokenType::THEOLOGY)) {
     extraTurnPending = true;
+    ConsoleView::printPlain("Theology Effect: " + owner->getName() +
+                            " gets an extra turn from building a Wonder!");
   }
+}
+
+if (effect.buildFromDiscard && !discardPile.empty()) {
+  // Mausoleum: Allow player to choose from discard pile
+  if (owner->isAIPlayer()) {
+    // AI simplified logic: Pick the last one (simplest) or highest VP
+    Card cardToBuild = discardPile.back();
+    // Ideally AI should evaluate, but for now simple fallback
+    // We need to find the card in discardPile and remove it
+    // The original logic just popped back, which assumes taking the top.
+    // But for Mausoleum, you fetch the whole pile.
+    // Let's stick to simple "take last" for AI for now.
+    discardPile.pop_back();
+    owner->buildCard(cardToBuild);
+  } else {
+    // Human: Show UI
+    Card chosenCard = chooseCardFromDiscard(owner);
+    // chooseCardFromDiscard manages removing from discardPile inside
+    owner->buildCard(chosenCard);
+  }
+}
+
+if (effect.opponentCoinsLoss > 0 && opponent) {
+  int loss = effect.opponentCoinsLoss;
+  int removed = opponent->getCoins() < loss ? opponent->getCoins() : loss;
+  opponent->removeCoins(removed);
+  ConsoleView::printPlain(opponent->getName() + " lost " +
+                          std::to_string(removed) +
+                          " coins due to wonder effect.");
+}
+
+if (effect.gainProgressToken) {
+  const auto &tokens = board.getAvailableProgressTokens();
+
+  // Check for Great Library "box" effect first
+  if (effect.gainProgressTokenFromBox) {
+    if (owner->isAIPlayer()) {
+      // AI: Pick random if available
+      const auto &removed = board.getRemovedProgressTokens();
+      if (!removed.empty()) {
+        ProgressToken t = board.takeRemovedProgressToken(0);
+        owner->addProgressToken(t);
+      }
+    } else {
+      // Human: Pick from box
+      ProgressToken t = chooseProgressTokenFromBox(owner);
+      // Logic inside checks valid token
+      if (t.getType() != ProgressTokenType::AGRICULTURE ||
+          t.getDescription() != "None") { // check valid
+        owner->addProgressToken(t);
+      }
+    }
+  } else {
+    // Law Token or similar (pick from board)
+    if (!tokens.empty()) {
+      // Should be interactive ideally, but existing logic was auto-take
+      // first. Let's keep it simple or make it interactive if we want. For
+      // now, existing logic was "take 0".
+      // TODO: If this is "Law", it should be interactive.
+      // But let's verify if gainProgressToken is used for Law.
+      // Update: We are implementing Great Library now.
+      ProgressToken token = board.takeProgressToken(0);
+      owner->addProgressToken(token);
+    }
+  }
+}
+
+builtWonderCount++;
+if (effect.playAgain) {
+  extraTurnPending = true;
+}
 }
 
 bool Game::isPyramidEmpty() const {
@@ -1193,4 +1203,44 @@ ProgressToken Game::chooseProgressTokenFromBox(Player * /*player*/) {
 
   int actualIndex = indices[choice];
   return board.takeRemovedProgressToken(actualIndex);
+}
+
+void Game::handleSciencePairReward(Player *player) {
+  // Use player's own counts to check for pairs
+  const auto counts = player->getScienceSymbolCounts();
+
+  for (const auto &[symbol, count] : counts) {
+    if (symbol == ScienceSymbol::NONE) {
+      continue;
+    }
+    // Check if player has a pair (>=2) AND has not yet claimed the reward for
+    // this symbol
+    if (count >= 2 && !player->hasClaimedSciencePair(symbol)) {
+      // Check if there are tokens on the board
+      const auto &available = board.getAvailableProgressTokens();
+      if (available.empty()) {
+        ConsoleView::printPlain(
+            "You have a pair of " + getScienceSymbolName(symbol) +
+            ", but no Progress Tokens are left on the board.");
+        player->markSciencePairClaimed(
+            symbol); // Mark as claimed so we don't prompt again
+        continue;
+      }
+
+      ConsoleView::printPlain("\n>>> SCIENTIFIC DISCOVERY! <<<");
+      ConsoleView::printPlain(
+          "You have collected a pair of identical scientific symbols (" +
+          getScienceSymbolName(symbol) + ").");
+      ConsoleView::printPlain("Choose a Progress Token from the board:");
+
+      int choice = ConsoleView::promptProgressTokenSelection(available);
+      ProgressToken token = board.takeProgressToken(choice);
+      player->addProgressToken(token);
+      player->markSciencePairClaimed(symbol);
+
+      ConsoleView::printPlain("You claimed the " + token.getName() + " token!");
+      // Apply immediate effects if any (Agriculture, Urbanism handled in
+      // addProgressToken mostly) Some effects (Law) might trigger immediately.
+    }
+  }
 }

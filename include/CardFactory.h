@@ -67,6 +67,12 @@ public:
                   const std::map<ResourceType, int> &costRes,
                   GuildType guildType);
 
+  // Guild Card overload for manual effect specification (coins, vp, strategy
+  // string)
+  std::unique_ptr<Card> createGuildCard(
+      const std::string &name, const std::map<ResourceType, int> &costRes,
+      int immediateCoins, int vp, const std::string &effectStrategy);
+
   // === 3. 奇迹创建接口 ===
   // 将 Wonder 的创建也封装在这里
   std::unique_ptr<Wonder>

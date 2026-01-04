@@ -199,21 +199,6 @@ int Player::calculateTradeCost(int totalCost, const Cost &cost,
                                const Player & /*opponent*/,
                                std::string /*chainTarget*/, CardType /*type*/,
                                bool /*isWonder*/) const {
-  // 简化版：基础资源2金币每个，灰色资源3金币每个
-  // 后续需要更复杂的逻辑，检查对手是否有资源，以及是否有商业卡牌优惠
-  // If chain target is valid, trade cost is 0
-  // The chain target check is now handled in calculateCost, so trade cost is
-  // only for resources.
-
-  // Total Cost = Card.coins + TradeCost.
-  // So TradeCost = TotalCost - Card.coins.
-  // However, calculateCost already did the heavy lifting.
-  // We can just rely on the fact that `calculateCost` returned `totalCost`.
-  // And `cost.coins` is the base coin cost.
-  // So TradeCost = totalCost - cost.coins.
-  // BUT checking for negative?
-  // `totalCost` should verify logic.
-  // Ideally, we can just use `totalCost - cost.coins`.
 
   int tradeCost = totalCost - cost.coins;
   return tradeCost > 0 ? tradeCost : 0;
@@ -259,37 +244,50 @@ int Player::calculateCost(const Cost &cost, const Player &opponent,
     }
   }
 
-  // Apply discount to requirements (greedy removal of missing resources)
-  // We can remove up to 'resourceDiscount' resources from missingResources.
-  // Standard implementation: Remove the most expensive ones?
-  // But strictly speaking, trading costs vary.
-  // For simplicity and favor to player: remove resources that would cost the
-  // most to trade. BUT we haven't calculated trade cost yet.
+  // Apply discount to requirements (Greedy: Remove most expensive resources
+  // first) We calculate the trade cost for each missing resource to decide
+  // which to remove.
+  if (resourceDiscount > 0 && !missingResources.empty()) {
+    std::vector<std::pair<int, ResourceType>> resourcePrices;
 
-  // Let's first apply wonders (wildcards) then apply discount?
-  // Rules for Architecture: "Wonders cost 2 fewer resources."
-  // Usually this means you lower the cost requirement.
-  // Wildcards cover the cost.
-  // It is better to apply Discount FIRST (reducing need), then cover remaining
-  // with Wonders? Or Cover with Wonders then apply discount? If I have 1 Wood
-  // needed. Architecture gives -2 resources. I need 0. If I have 1 Wood needed.
-  // I have Great Lighthouse (Wood). If I use GL, I use valid resource. If I use
-  // Architecture, I save GL for another need? (Wait, GL is once per
-  // turn/construction?). Actually, Wonders produce specific things.
-  // Architecture reduces COUNT. It is always better to reduce count first, to
-  // save Wonder production? Or does it matter? The rule is "Cost 2 fewer
-  // resources". So we should reduce the `missingResources` count. Ideally, we
-  // remove the resources that are hardest to get? But trade costs are variable.
-  // Let's implement a simple greedy approach: Reduce the first found missing
-  // resources. Or better: Iterate and reduce.
+    for (const auto &[type, amount] : missingResources) {
+      // Calculate price per unit for this resource
+      const TradeDiscount &discount = tradeDiscounts.at(type);
+      int opponentProduction = 0;
+      if (!discount.priceToOne) {
+        const std::vector<Card> &oppCards = opponent.getBuiltCards();
+        for (const auto &oppCard : oppCards) {
+          CardType cType = oppCard.getType();
+          if (cType == CardType::RAW_MATERIAL ||
+              cType == CardType::MANUFACTURED_GOOD) {
+            const auto &prodMap = oppCard.getEffect().resourcesProduced;
+            auto it = prodMap.find(type);
+            if (it != prodMap.end()) {
+              opponentProduction += it->second;
+            }
+          }
+        }
+      }
+      int price = discount.priceToOne ? 1 : 2 + opponentProduction;
+      if (!discount.priceToOne && discount.coinDiscount > 0) {
+        price = std::max(0, price - discount.coinDiscount);
+      }
+      resourcePrices.push_back({price, type});
+    }
 
-  while (resourceDiscount > 0 && !missingResources.empty()) {
-    // Find a resource to reduce
-    auto it = missingResources.begin();
-    it->second--;
-    resourceDiscount--;
-    if (it->second == 0) {
-      missingResources.erase(it);
+    // Sort by price descending
+    std::sort(resourcePrices.rbegin(), resourcePrices.rend());
+
+    for (const auto &[price, type] : resourcePrices) {
+      while (resourceDiscount > 0 && missingResources[type] > 0) {
+        missingResources[type]--;
+        resourceDiscount--;
+        if (missingResources[type] == 0) {
+          missingResources.erase(type);
+        }
+      }
+      if (resourceDiscount == 0)
+        break;
     }
   }
 
